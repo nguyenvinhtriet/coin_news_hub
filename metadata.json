@@ -1,0 +1,5 @@
+{
+  "name": "AI News Aggregator & Dispatcher",
+  "description": "A web application that aggregates RSS feeds, scores them using Gemini AI, saves to Supabase, and dispatches to Telegram.",
+  "requestFramePermissions": []
+}
