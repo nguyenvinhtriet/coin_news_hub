@@ -120,21 +120,21 @@ export default function TabDispatcher() {
           <h2 className="text-2xl font-bold text-gray-900">Quản lý & Gửi Telegram</h2>
           <p className="text-gray-500 mt-1">Quản lý các báo cáo AI đã tạo và phân phối qua Telegram Channel.</p>
         </div>
-        <div className="flex gap-3">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 w-full sm:w-auto -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
           <button
             onClick={fetchReports}
             disabled={loading}
-            className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 shrink-0 ${loading ? 'animate-spin' : ''}`} />
             Làm mới
           </button>
           <button
             onClick={sendToTelegram}
             disabled={sending || !reports.some(r => r.selected)}
-            className="flex items-center gap-2 bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
           >
-            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {sending ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Send className="w-4 h-4 shrink-0" />}
             Gửi Báo Cáo qua Telegram
           </button>
         </div>
@@ -151,10 +151,10 @@ export default function TabDispatcher() {
           <table className="w-full text-left text-sm text-gray-600">
             <thead className="bg-gray-50 text-gray-700 font-medium border-b border-gray-200">
               <tr>
-                <th className="p-4 w-12 text-center">Chọn</th>
-                <th className="p-4 w-24 text-center">Trạng thái</th>
-                <th className="p-4">Nội dung Báo cáo</th>
-                <th className="p-4 w-32">Ngày tạo</th>
+                <th className="p-4 w-12 text-center whitespace-nowrap">Chọn</th>
+                <th className="p-4 w-24 text-center whitespace-nowrap">Trạng thái</th>
+                <th className="p-4 min-w-[300px]">Nội dung Báo cáo</th>
+                <th className="p-4 w-32 whitespace-nowrap">Ngày tạo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -172,7 +172,7 @@ export default function TabDispatcher() {
                         {report.selected ? <CheckSquare className="w-5 h-5 text-sky-600" /> : <Square className="w-5 h-5" />}
                       </button>
                     </td>
-                    <td className="p-4 text-center">
+                    <td className="p-4 text-center whitespace-nowrap">
                       {report.is_sent ? (
                         <span className="inline-flex items-center gap-1 text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full text-xs font-medium">
                           <CheckCircle2 className="w-3 h-3" /> Đã gửi
@@ -191,7 +191,7 @@ export default function TabDispatcher() {
                         </div>
                       </div>
                     </td>
-                    <td className="p-4 text-xs text-gray-500">
+                    <td className="p-4 text-xs text-gray-500 whitespace-nowrap">
                       {format(new Date(report.created_at), 'dd/MM/yyyy HH:mm')}
                     </td>
                   </tr>

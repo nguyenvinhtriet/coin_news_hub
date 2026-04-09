@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useSettingsStore, useAppStore, Article } from '@/lib/store';
 import { getSupabaseClient } from '@/lib/supabase';
-import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import { Loader2, Sparkles, Save, CheckSquare, Square, ExternalLink, Rss, FileText, Calendar } from 'lucide-react';
 
 export default function TabNewsFeed() {
@@ -13,6 +12,8 @@ export default function TabNewsFeed() {
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [minScore, setMinScore] = useState<number>(7);
+  const [mainSummary, setMainSummary] = useState<string | null>(null);
 
   const fetchRSS = async () => {
     setLoading(true);
@@ -113,60 +114,34 @@ export default function TabNewsFeed() {
     setError(null);
 
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
-      
       const articlesData = selectedArticles.map(a => ({
         id: a.id,
         title: a.title,
         description: a.description
       }));
 
-      const prompt = `
-        Bạn là một chuyên gia phân tích tin tức tài chính. Hãy đánh giá các tin bài sau dựa trên tiêu chí:
-        "${settings.hotCriteria}"
-        
-        Danh sách tin bài (JSON):
-        ${JSON.stringify(articlesData)}
-        
-        Nhiệm vụ: Chấm điểm từng tin bài từ 1 đến 10 dựa trên mức độ phù hợp với tiêu chí trên.
-        Trả về kết quả dưới dạng JSON array, mỗi object gồm:
-        - id: ID của tin bài
-        - score: Điểm số (1-10)
-        - reason: 1 câu tóm tắt lý do ngắn gọn.
-      `;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
-        contents: prompt,
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                id: { type: Type.STRING },
-                score: { type: Type.INTEGER },
-                reason: { type: Type.STRING }
-              },
-              required: ["id", "score", "reason"]
-            }
-          },
-          thinkingConfig: {
-            thinkingLevel: ThinkingLevel.HIGH
+      const res = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'score_only',
+          payload: {
+            articlesData,
+            hotCriteria: settings.hotCriteria,
+            apiKey: settings.geminiApiKey
           }
-        }
+        })
       });
 
-      const resultText = response.text;
-      if (!resultText) throw new Error("AI không trả về kết quả.");
-      
-      const aiResults = JSON.parse(resultText);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Lỗi khi gọi API chấm điểm.");
+
+      const aiResults = data.results;
       
       const updatedArticles = articles.map(article => {
         const aiData = aiResults.find((r: any) => r.id === article.id);
         if (aiData) {
-          return { ...article, ai_score: aiData.score, ai_analysis: aiData.reason };
+          return { ...article, ai_score: aiData.score };
         }
         return article;
       });
@@ -248,9 +223,9 @@ export default function TabNewsFeed() {
   };
 
   const generateReportAndSave = async () => {
-    const selectedArticles = articles.filter(a => a.selected);
+    const selectedArticles = articles.filter(a => a.selected && (a.ai_score === undefined || a.ai_score >= minScore));
     if (selectedArticles.length === 0) {
-      setError("Vui lòng chọn ít nhất 1 tin bài để tạo báo cáo.");
+      setError(`Vui lòng chọn ít nhất 1 tin bài thỏa mãn điểm số >= ${minScore} để phân tích chi tiết và tạo báo cáo.`);
       return;
     }
 
@@ -261,43 +236,41 @@ export default function TabNewsFeed() {
 
     setSaving(true);
     setError(null);
+    setMainSummary(null);
 
     try {
       const supabase = getSupabaseClient(settings.supabaseUrl, settings.supabaseAnonKey);
       if (!supabase) throw new Error("Không thể khởi tạo Supabase Client.");
 
-      // 1. Generate Report with Gemini
-      const ai = new GoogleGenAI({ apiKey: process.env.NEXT_PUBLIC_GEMINI_API_KEY });
-      const reportPrompt = `
-        Bạn là chuyên gia phân tích tài chính cấp cao. Dựa vào danh sách các tin tức quan trọng sau đây, hãy viết một BÁO CÁO TỔNG HỢP THỊ TRƯỜNG bằng TIẾNG VIỆT.
-        
-        Yêu cầu báo cáo:
-        1. Nhận định ảnh hưởng của từng tin tức (ngắn gọn).
-        2. Đánh giá ảnh hưởng chung đến thị trường (Chứng khoán, Crypto, Kinh tế vĩ mô).
-        3. Dự báo/Nhận định biến chuyển thị trường trong ngày hôm nay.
-        
-        ĐỊNH DẠNG BẮT BUỘC:
-        Chỉ sử dụng các thẻ HTML được Telegram hỗ trợ: <b>, <i>, <u>, <s>, <a>, <code>, <pre>. 
-        KHÔNG dùng <p>, <br>, <h1>, <ul>, <li>. 
-        Sử dụng ký tự xuống dòng (\\n) để ngắt dòng. 
-        Trả về nội dung text thuần túy chứa các thẻ HTML này, không bọc trong markdown block.
-        
-        Danh sách tin tức:
-        ${JSON.stringify(selectedArticles.map(a => ({ title: a.title, summary: a.description, ai_analysis: a.ai_analysis, link: a.link })))}
-      `;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.1-pro-preview',
-        contents: reportPrompt,
-        config: {
-          thinkingConfig: {
-            thinkingLevel: ThinkingLevel.HIGH
+      // 1. Generate Detailed Analysis & Report with Gemini
+      const res = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'analyze_and_report',
+          payload: {
+            articlesData: selectedArticles.map(a => ({ id: a.id, title: a.title, summary: a.description, link: a.link })),
+            apiKey: settings.geminiApiKey
           }
-        }
+        })
       });
 
-      let reportContent = response.text || '';
-      reportContent = reportContent.replace(/^```html\n?/, '').replace(/^```\n?/, '').replace(/```$/, '').trim();
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Lỗi khi gọi API tạo báo cáo.");
+
+      const reportContent = data.summary;
+      const notes = data.notes || {};
+      
+      setMainSummary(reportContent);
+
+      // Update articles with detailed notes
+      const updatedArticles = articles.map(article => {
+        if (notes[article.id]) {
+          return { ...article, ai_analysis: notes[article.id] };
+        }
+        return article;
+      });
+      setArticles(updatedArticles);
 
       // 2. Save Report to Supabase
       const { error: reportError } = await supabase
@@ -306,8 +279,10 @@ export default function TabNewsFeed() {
 
       if (reportError) throw reportError;
 
-      setArticles(articles.map(a => a.selected ? { ...a, selected: false } : a));
-      alert(`Đã tạo báo cáo và lưu thành công!`);
+      // Deselect the ones we just processed
+      setArticles(updatedArticles.map(a => selectedArticles.find(sa => sa.id === a.id) ? { ...a, selected: false } : a));
+      
+      alert(`Đã phân tích chi tiết, tạo báo cáo và lưu thành công!`);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Lỗi khi tạo báo cáo hoặc lưu vào Supabase.");
@@ -350,6 +325,19 @@ export default function TabNewsFeed() {
         </div>
       )}
 
+      {mainSummary && (
+        <div className="bg-emerald-50 rounded-xl shadow-sm border border-emerald-200 overflow-hidden p-6 mb-6">
+          <h3 className="text-lg font-bold text-emerald-900 mb-4 flex items-center gap-2">
+            <Sparkles className="w-5 h-5 text-emerald-600" />
+            Báo cáo tổng hợp thị trường
+          </h3>
+          <div 
+            className="prose prose-sm max-w-none text-emerald-800"
+            dangerouslySetInnerHTML={{ __html: mainSummary.replace(/\n/g, '<br/>') }}
+          />
+        </div>
+      )}
+
       {articles.length > 0 && (
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-4 border-b border-gray-200 flex flex-wrap justify-between items-center bg-gray-50 gap-4">
@@ -359,30 +347,41 @@ export default function TabNewsFeed() {
                 Chọn tất cả ({articles.filter(a => a.selected).length}/{articles.length})
               </button>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 w-full sm:w-auto -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
+              <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-1.5 shrink-0">
+                <span className="text-sm font-medium text-gray-700">Lọc điểm &ge;</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="10"
+                  value={minScore}
+                  onChange={(e) => setMinScore(Number(e.target.value))}
+                  className="w-12 bg-transparent border-none outline-none text-sm font-bold text-blue-600 text-center"
+                />
+              </div>
               <button
                 onClick={analyzeWithAI}
                 disabled={loading || analyzing || !articles.some(a => a.selected)}
-                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium"
+                className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium whitespace-nowrap shrink-0"
               >
-                {analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                Phân tích AI (Đã chọn)
-              </button>
-              <button
-                onClick={saveArticlesToDB}
-                disabled={saving || !articles.some(a => a.selected)}
-                className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 text-sm font-medium"
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                Lưu Tin (Đã chọn)
+                {analyzing ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Sparkles className="w-4 h-4 shrink-0" />}
+                Chấm điểm AI (Đã chọn)
               </button>
               <button
                 onClick={generateReportAndSave}
                 disabled={saving || !articles.some(a => a.selected)}
-                className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm font-medium"
+                className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm font-medium whitespace-nowrap shrink-0"
               >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-                Tạo Báo Cáo & Lưu
+                {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <FileText className="w-4 h-4 shrink-0" />}
+                Phân tích chi tiết & Tạo Báo Cáo
+              </button>
+              <button
+                onClick={saveArticlesToDB}
+                disabled={saving || !articles.some(a => a.selected)}
+                className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 text-sm font-medium whitespace-nowrap shrink-0"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />}
+                Lưu Tin (Đã chọn)
               </button>
             </div>
           </div>
