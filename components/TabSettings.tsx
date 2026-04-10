@@ -36,6 +36,18 @@ CREATE TABLE reports (
       <div>
         <h2 className="text-2xl font-bold text-gray-900">Cấu hình hệ thống</h2>
         <p className="text-gray-500 mt-1">Thiết lập API keys và tiêu chí đánh giá AI. Dữ liệu được lưu an toàn trên trình duyệt của bạn.</p>
+        <div className="mt-4 bg-blue-50 border border-blue-100 p-4 rounded-lg text-sm text-blue-800">
+          <p className="font-semibold mb-1 flex items-center gap-1"><Info className="w-4 h-4" /> Mẹo triển khai Vercel:</p>
+          <p>Bạn có thể cấu hình các thông số này thông qua <strong>Environment Variables</strong> trên Vercel để bảo mật và không cần nhập lại. Các biến hỗ trợ:</p>
+          <ul className="list-disc list-inside mt-2 space-y-1 font-mono text-xs">
+            <li>NEXT_PUBLIC_SUPABASE_URL</li>
+            <li>NEXT_PUBLIC_SUPABASE_ANON_KEY</li>
+            <li>GEMINI_API_KEY</li>
+            <li>TELEGRAM_BOT_TOKEN</li>
+            <li>TELEGRAM_CHAT_ID</li>
+            <li>NEXT_PUBLIC_ADMIN_PASSWORD_HASH</li>
+          </ul>
+        </div>
       </div>
 
       <form onSubmit={handleSave} className="space-y-6 bg-white p-6 rounded-xl shadow-sm border border-gray-100">

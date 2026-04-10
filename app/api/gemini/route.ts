@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 export async function POST(req: Request) {
   try {
     const { action, payload } = await req.json();
-    const apiKey = (payload.apiKey || process.env.GEMINI_API_KEY || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '').trim();
+    const apiKey = (process.env.GEMINI_API_KEY || payload.apiKey || process.env.NEXT_PUBLIC_GEMINI_API_KEY || '').trim();
 
     if (!apiKey) {
       return NextResponse.json({ error: 'Vui lòng cấu hình Gemini API Key trong phần Cấu hình hoặc biến môi trường.' }, { status: 400 });

@@ -27,8 +27,11 @@ export default function TabNewsFeed() {
     nextDate.setDate(nextDate.getDate() + 1);
 
     let dbArticles: any[] = [];
-    if (settings.supabaseUrl && settings.supabaseAnonKey) {
-      const supabase = getSupabaseClient(settings.supabaseUrl, settings.supabaseAnonKey);
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || settings.supabaseUrl;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || settings.supabaseAnonKey;
+
+    if (supabaseUrl && supabaseAnonKey) {
+      const supabase = getSupabaseClient(supabaseUrl, supabaseAnonKey);
       if (supabase) {
         const { data, error: dbError } = await supabase
           .from('articles')
@@ -192,8 +195,11 @@ export default function TabNewsFeed() {
       return;
     }
 
-    if (!settings.supabaseUrl || !settings.supabaseAnonKey) {
-      setError("Vui lòng cấu hình Supabase trong phần Cấu hình.");
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || settings.supabaseUrl;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || settings.supabaseAnonKey;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      setError("Vui lòng cấu hình Supabase trong Environment Variables hoặc Settings.");
       return;
     }
 
@@ -201,7 +207,7 @@ export default function TabNewsFeed() {
     setError(null);
 
     try {
-      const supabase = getSupabaseClient(settings.supabaseUrl, settings.supabaseAnonKey);
+      const supabase = getSupabaseClient(supabaseUrl, supabaseAnonKey);
       if (!supabase) throw new Error("Không thể khởi tạo Supabase Client.");
 
       const newArticles = selectedArticles.filter(a => !a.from_db);
@@ -248,8 +254,11 @@ export default function TabNewsFeed() {
       return;
     }
 
-    if (!settings.supabaseUrl || !settings.supabaseAnonKey) {
-      setError("Vui lòng cấu hình Supabase trong phần Cấu hình.");
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || settings.supabaseUrl;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || settings.supabaseAnonKey;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      setError("Vui lòng cấu hình Supabase trong Environment Variables hoặc Settings.");
       return;
     }
 
@@ -258,7 +267,7 @@ export default function TabNewsFeed() {
     setMainSummary(null);
 
     try {
-      const supabase = getSupabaseClient(settings.supabaseUrl, settings.supabaseAnonKey);
+      const supabase = getSupabaseClient(supabaseUrl, supabaseAnonKey);
       if (!supabase) throw new Error("Không thể khởi tạo Supabase Client.");
 
       // 1. Generate Detailed Analysis & Report with Gemini
@@ -311,8 +320,11 @@ export default function TabNewsFeed() {
   };
 
   const runAutoProcess = async () => {
-    if (!settings.supabaseUrl || !settings.supabaseAnonKey) {
-      setError("Vui lòng cấu hình Supabase trong phần Cấu hình để dùng tính năng Tự động.");
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || settings.supabaseUrl;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || settings.supabaseAnonKey;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      setError("Vui lòng cấu hình Supabase trong Environment Variables hoặc Settings để dùng tính năng Tự động.");
       return;
     }
 
@@ -396,7 +408,7 @@ export default function TabNewsFeed() {
       });
 
       // 5. Save to DB
-      const supabase = getSupabaseClient(settings.supabaseUrl, settings.supabaseAnonKey);
+      const supabase = getSupabaseClient(supabaseUrl, supabaseAnonKey);
       if (supabase) {
         // Save Report
         await supabase.from('reports').insert([{ content: reportContent, is_sent: false }]);

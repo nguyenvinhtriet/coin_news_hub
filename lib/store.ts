@@ -28,13 +28,13 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      supabaseUrl: '',
-      supabaseAnonKey: '',
-      telegramBotToken: '',
-      telegramChatId: '',
-      geminiApiKey: '',
-      hotCriteria: 'Đánh giá xem tin tức này có mức độ Critical (nghiêm trọng) hoặc Hot (nóng) đối với thị trường tài chính, chứng khoán toàn cầu và Crypto hay không. Chấm điểm từ 1-10 và giải thích ngắn gọn.',
-      rssUrls: 'https://cointelegraph.com/rss\nhttps://www.coindesk.com/arc/outboundfeeds/rss/\nhttps://search.cnbc.com/rs/search/combinedcms/view.xml?profile=120000000&id=10000664\nhttps://feeds.a.dj.com/rss/RSSMarketsMain.xml\nhttps://vietnamnet.vn/kinh-doanh-tai-chinh.rss',
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL || '',
+      supabaseAnonKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+      telegramBotToken: '', // Không nên expose ra NEXT_PUBLIC_
+      telegramChatId: '',   // Không nên expose ra NEXT_PUBLIC_
+      geminiApiKey: '',     // Không nên expose ra NEXT_PUBLIC_
+      hotCriteria: process.env.NEXT_PUBLIC_HOT_CRITERIA || 'Đánh giá xem tin tức này có mức độ Critical (nghiêm trọng) hoặc Hot (nóng) đối với thị trường tài chính, chứng khoán toàn cầu và Crypto hay không. Chấm điểm từ 1-10 và giải thích ngắn gọn.',
+      rssUrls: process.env.NEXT_PUBLIC_RSS_URLS ? process.env.NEXT_PUBLIC_RSS_URLS.replace(/,/g, '\n') : 'https://cointelegraph.com/rss\nhttps://www.coindesk.com/arc/outboundfeeds/rss/\nhttps://search.cnbc.com/rs/search/combinedcms/view.xml?profile=120000000&id=10000664\nhttps://feeds.a.dj.com/rss/RSSMarketsMain.xml\nhttps://vietnamnet.vn/kinh-doanh-tai-chinh.rss',
       setSettings: (newSettings) => set((state) => ({ ...state, ...newSettings })),
     }),
     {

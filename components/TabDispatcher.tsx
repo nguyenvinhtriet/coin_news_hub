@@ -22,8 +22,11 @@ export default function TabDispatcher() {
   const [error, setError] = useState<string | null>(null);
 
   const fetchReports = async () => {
-    if (!settings.supabaseUrl || !settings.supabaseAnonKey) {
-      setError("Vui lòng cấu hình Supabase trong phần Cấu hình.");
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || settings.supabaseUrl;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || settings.supabaseAnonKey;
+    
+    if (!supabaseUrl || !supabaseAnonKey) {
+      setError("Vui lòng cấu hình Supabase trong Environment Variables hoặc Settings.");
       return;
     }
 
@@ -31,7 +34,7 @@ export default function TabDispatcher() {
     setError(null);
 
     try {
-      const supabase = getSupabaseClient(settings.supabaseUrl, settings.supabaseAnonKey);
+      const supabase = getSupabaseClient(supabaseUrl, supabaseAnonKey);
       if (!supabase) throw new Error("Không thể khởi tạo Supabase Client.");
 
       const { data, error: dbError } = await supabase
@@ -52,7 +55,9 @@ export default function TabDispatcher() {
   };
 
   useEffect(() => {
-    if (settings.supabaseUrl && settings.supabaseAnonKey) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || settings.supabaseUrl;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || settings.supabaseAnonKey;
+    if (supabaseUrl && supabaseAnonKey) {
       fetchReports();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -66,33 +71,34 @@ export default function TabDispatcher() {
     const selectedReports = reports.filter(r => r.selected);
     if (selectedReports.length === 0) return;
 
-    if (!settings.telegramBotToken || !settings.telegramChatId) {
-      setError("Vui lòng cấu hình Telegram Bot trong phần Cấu hình.");
-      return;
-    }
-
     setSending(true);
     setError(null);
 
     try {
-      const supabase = getSupabaseClient(settings.supabaseUrl, settings.supabaseAnonKey);
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || settings.supabaseUrl;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || settings.supabaseAnonKey;
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error("Vui lòng cấu hình Supabase trong Environment Variables hoặc Settings.");
+      }
+
+      const supabase = getSupabaseClient(supabaseUrl, supabaseAnonKey);
       if (!supabase) throw new Error("Không thể khởi tạo Supabase Client.");
 
       for (const report of selectedReports) {
-        const res = await fetch(`https://api.telegram.org/bot${settings.telegramBotToken}/sendMessage`, {
+        const resTele = await fetch('/api/telegram', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            chat_id: settings.telegramChatId,
-            text: report.content,
-            parse_mode: 'HTML',
-            disable_web_page_preview: true
+            messageContent: report.content,
+            botToken: settings.telegramBotToken,
+            chatId: settings.telegramChatId
           })
         });
 
-        const data = await res.json();
-        if (!data.ok) {
-          throw new Error(`Lỗi Telegram: ${data.description}`);
+        const dataTele = await resTele.json();
+        if (!resTele.ok) {
+          throw new Error(dataTele.error || `Lỗi khi gọi API Telegram`);
         }
 
         // Update Supabase
@@ -114,16 +120,18 @@ export default function TabDispatcher() {
   };
 
   const generateAndSendTelegram = async (type: 'basic' | 'advance') => {
-    if (!settings.telegramBotToken || !settings.telegramChatId) {
-      setError("Vui lòng cấu hình Telegram Bot trong phần Cấu hình.");
-      return;
-    }
-
     setSending(true);
     setError(null);
 
     try {
-      const supabase = getSupabaseClient(settings.supabaseUrl, settings.supabaseAnonKey);
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || settings.supabaseUrl;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || settings.supabaseAnonKey;
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error("Vui lòng cấu hình Supabase trong Environment Variables hoặc Settings.");
+      }
+
+      const supabase = getSupabaseClient(supabaseUrl, supabaseAnonKey);
       if (!supabase) throw new Error("Không thể khởi tạo Supabase Client.");
 
       // Lấy tin tức hôm nay có điểm >= 7
@@ -165,21 +173,20 @@ export default function TabDispatcher() {
 
       const messageContent = dataGemini.result;
 
-      // Gửi Telegram
-      const resTele = await fetch(`https://api.telegram.org/bot${settings.telegramBotToken}/sendMessage`, {
+      // Gửi Telegram thông qua API Route nội bộ (bảo mật Bot Token)
+      const resTele = await fetch('/api/telegram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: settings.telegramChatId,
-          text: messageContent,
-          parse_mode: 'HTML',
-          disable_web_page_preview: true
+          messageContent: messageContent,
+          botToken: settings.telegramBotToken, // Fallback nếu không có ENV
+          chatId: settings.telegramChatId      // Fallback nếu không có ENV
         })
       });
 
       const dataTele = await resTele.json();
-      if (!dataTele.ok) {
-        throw new Error(`Lỗi Telegram: ${dataTele.description}`);
+      if (!resTele.ok) {
+        throw new Error(dataTele.error || `Lỗi khi gọi API Telegram`);
       }
 
       // Lưu vào reports
