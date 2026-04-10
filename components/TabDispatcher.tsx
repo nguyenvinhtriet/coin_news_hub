@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSettingsStore } from '@/lib/store';
 import { getSupabaseClient } from '@/lib/supabase';
-import { Loader2, Send, CheckSquare, Square, CheckCircle2, Circle, RefreshCw, FileText, ListChecks } from 'lucide-react';
+import { Loader2, Send, CheckSquare, Square, CheckCircle2, Circle, RefreshCw, FileText, Zap, BrainCircuit } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface DBReport {
@@ -113,7 +113,7 @@ export default function TabDispatcher() {
     }
   };
 
-  const sendHighScoredArticlesToTelegram = async () => {
+  const generateAndSendTelegram = async (type: 'basic' | 'advance') => {
     if (!settings.telegramBotToken || !settings.telegramChatId) {
       setError("Vui lòng cấu hình Telegram Bot trong phần Cấu hình.");
       return;
@@ -147,37 +147,49 @@ export default function TabDispatcher() {
         return;
       }
 
-      let message = `<b>🔥 DANH SÁCH TIN TỨC ĐÁNG CHÚ Ý (Điểm >= 7)</b>\nNgày: ${format(new Date(), 'dd/MM/yyyy')}\n\n`;
-      
-      articles.forEach((a, index) => {
-        message += `${index + 1}. <a href="${a.link}">${a.title}</a>\n`;
-        message += `🎯 Điểm: <b>${a.ai_score}</b>\n`;
-        if (a.ai_analysis) {
-          message += `💡 <i>${a.ai_analysis}</i>\n`;
-        }
-        message += `\n`;
+      // Gọi API Gemini để tạo nội dung
+      const resGemini = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: type === 'basic' ? 'telegram_basic' : 'telegram_advance',
+          payload: {
+            articlesData: articles.map(a => ({ title: a.title, summary: a.summary, link: a.link, score: a.ai_score, analysis: a.ai_analysis })),
+            apiKey: settings.geminiApiKey
+          }
+        })
       });
 
-      const res = await fetch(`https://api.telegram.org/bot${settings.telegramBotToken}/sendMessage`, {
+      const dataGemini = await resGemini.json();
+      if (!resGemini.ok) throw new Error(dataGemini.error || "Lỗi khi gọi API Gemini.");
+
+      const messageContent = dataGemini.result;
+
+      // Gửi Telegram
+      const resTele = await fetch(`https://api.telegram.org/bot${settings.telegramBotToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           chat_id: settings.telegramChatId,
-          text: message,
+          text: messageContent,
           parse_mode: 'HTML',
           disable_web_page_preview: true
         })
       });
 
-      const data = await res.json();
-      if (!data.ok) {
-        throw new Error(`Lỗi Telegram: ${data.description}`);
+      const dataTele = await resTele.json();
+      if (!dataTele.ok) {
+        throw new Error(`Lỗi Telegram: ${dataTele.description}`);
       }
 
-      alert(`Đã gửi danh sách ${articles.length} tin tức (>= 7) qua Telegram!`);
+      // Lưu vào reports
+      await supabase.from('reports').insert([{ content: messageContent, is_sent: true }]);
+      
+      await fetchReports();
+      alert(`Đã gửi bản tin ${type === 'basic' ? 'Tổng hợp nhanh (Basic)' : 'Phân tích sâu (Advance)'} qua Telegram thành công!`);
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "Lỗi khi gửi danh sách tin tức qua Telegram.");
+      setError(err.message || "Lỗi khi xử lý gửi Telegram.");
     } finally {
       setSending(false);
     }
@@ -200,12 +212,20 @@ export default function TabDispatcher() {
             Làm mới
           </button>
           <button
-            onClick={sendHighScoredArticlesToTelegram}
+            onClick={() => generateAndSendTelegram('basic')}
+            disabled={sending}
+            className="flex items-center gap-2 bg-amber-500 text-white px-4 py-2 rounded-lg hover:bg-amber-600 transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
+          >
+            {sending ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Zap className="w-4 h-4 shrink-0" />}
+            Gửi Nhanh (Basic)
+          </button>
+          <button
+            onClick={() => generateAndSendTelegram('advance')}
             disabled={sending}
             className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
           >
-            {sending ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <ListChecks className="w-4 h-4 shrink-0" />}
-            Gửi List RSS &ge; 7
+            {sending ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <BrainCircuit className="w-4 h-4 shrink-0" />}
+            Gửi Phân Tích Sâu (Advance)
           </button>
           <button
             onClick={sendToTelegram}
@@ -213,7 +233,7 @@ export default function TabDispatcher() {
             className="flex items-center gap-2 bg-sky-600 text-white px-4 py-2 rounded-lg hover:bg-sky-700 transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
           >
             {sending ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Send className="w-4 h-4 shrink-0" />}
-            Gửi Báo Cáo qua Telegram
+            Gửi Báo Cáo Đã Chọn
           </button>
         </div>
       </div>

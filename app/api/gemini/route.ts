@@ -102,6 +102,61 @@ export async function POST(req: Request) {
       
       const aiResults = JSON.parse(resultText);
       return NextResponse.json(aiResults);
+
+    } else if (action === 'telegram_basic') {
+      const { articlesData } = payload;
+      const prompt = `
+        Bạn là trợ lý tài chính. Hãy tóm tắt danh sách tin tức sau thành một bản tin NGẮN GỌN để gửi Telegram.
+        Yêu cầu:
+        - Trình bày dạng danh sách rõ ràng (có thể dùng emoji).
+        - Mỗi tin gồm: Tiêu đề (kèm link), Điểm số, và 1 câu nhận xét cực kỳ ngắn gọn.
+        
+        CHÚ Ý ĐỊNH DẠNG BẮT BUỘC: 
+        - Chỉ dùng các thẻ HTML được Telegram hỗ trợ: <b>, <i>, <a>, <u>, <s>, <code>, <pre>. 
+        - KHÔNG dùng thẻ markdown như ** hay #. 
+        - KHÔNG dùng <p>, <br>, <ul>, <li>, <h1>... 
+        - Dùng ký tự xuống dòng (\\n) để ngắt dòng.
+        
+        Danh sách tin:
+        ${JSON.stringify(articlesData)}
+      `;
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+      let text = response.text || '';
+      text = text.replace(/^```html\n?/, '').replace(/^```\n?/, '').replace(/```$/, '').trim();
+      return NextResponse.json({ result: text });
+
+    } else if (action === 'telegram_advance') {
+      const { articlesData } = payload;
+      const prompt = `
+        Bạn là chuyên gia phân tích tài chính cấp cao. Hãy viết một bài phân tích CHI TIẾT SÂU SẮC để gửi Telegram dựa trên các tin tức sau.
+        Yêu cầu:
+        - Phân tích chi tiết từng tin tức và tác động của nó đến thị trường (Chứng khoán, Crypto, Vĩ mô).
+        - Đưa ra nhận định chuyên sâu, tổng hợp và dự báo xu hướng.
+        - Trình bày chuyên nghiệp, mạch lạc.
+        
+        CHÚ Ý ĐỊNH DẠNG BẮT BUỘC: 
+        - Chỉ dùng các thẻ HTML được Telegram hỗ trợ: <b>, <i>, <a>, <u>, <s>, <code>, <pre>. 
+        - KHÔNG dùng thẻ markdown như ** hay #. 
+        - KHÔNG dùng <p>, <br>, <ul>, <li>, <h1>... 
+        - Dùng ký tự xuống dòng (\\n) để ngắt dòng.
+        
+        Danh sách tin:
+        ${JSON.stringify(articlesData)}
+      `;
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-pro-preview',
+        contents: prompt,
+        config: {
+          thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }
+        }
+      });
+      let text = response.text || '';
+      text = text.replace(/^```html\n?/, '').replace(/^```\n?/, '').replace(/```$/, '').trim();
+      return NextResponse.json({ result: text });
+
     } else {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
