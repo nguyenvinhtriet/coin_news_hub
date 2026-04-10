@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useSettingsStore } from '@/lib/store';
-import { Save, Database, MessageSquare, Rss, Info, Sparkles } from 'lucide-react';
+import { Save, Database, MessageSquare, Rss, Info, Sparkles, Filter } from 'lucide-react';
 
 export default function TabSettings() {
   const settings = useSettingsStore();
@@ -31,6 +31,14 @@ CREATE TABLE reports (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );`;
 
+  const SCORE_RANGES = [
+    { id: '9-10', label: '9 - 10 Điểm' },
+    { id: '7-8', label: '7 - 8 Điểm' },
+    { id: '5-6', label: '5 - 6 Điểm' },
+    { id: '1-4', label: '1 - 4 Điểm' },
+    { id: 'unscored', label: 'Chưa chấm điểm' }
+  ];
+
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div>
@@ -56,9 +64,9 @@ CREATE TABLE reports (
         <div className="space-y-4">
           <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800">
             <Sparkles className="w-5 h-5 text-purple-500" />
-            Cấu hình AI (Gemini)
+            Cấu hình AI (Gemini & Groq)
           </h3>
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Gemini API Key</label>
               <input
@@ -69,6 +77,17 @@ CREATE TABLE reports (
                 placeholder="AIzaSy..."
               />
               <p className="text-xs text-gray-500 mt-1">Nếu để trống, hệ thống sẽ sử dụng biến môi trường trên server (Vercel).</p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Groq API Key (Backup)</label>
+              <input
+                type="password"
+                value={settings.groqApiKey}
+                onChange={(e) => settings.setSettings({ groqApiKey: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all"
+                placeholder="gsk_..."
+              />
+              <p className="text-xs text-gray-500 mt-1">Dùng Llama 3 làm phương án dự phòng khi Gemini bị lỗi 503.</p>
             </div>
           </div>
         </div>
@@ -102,6 +121,30 @@ CREATE TABLE reports (
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all"
                 placeholder="Ví dụ: Hãy chấm điểm cao cho các tin tức ảnh hưởng mạnh..."
               />
+            </div>
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center gap-1"><Filter className="w-4 h-4"/> Bộ lọc điểm mặc định</label>
+              <div className="flex flex-wrap gap-3">
+                {SCORE_RANGES.map(range => (
+                  <label key={range.id} className="flex items-center gap-1.5 cursor-pointer bg-gray-50 px-3 py-2 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={(settings.defaultScoreFilter || []).includes(range.id)}
+                      onChange={(e) => {
+                        const current = settings.defaultScoreFilter || [];
+                        if (e.target.checked) {
+                          settings.setSettings({ defaultScoreFilter: [...current, range.id] });
+                        } else {
+                          settings.setSettings({ defaultScoreFilter: current.filter(id => id !== range.id) });
+                        }
+                      }}
+                      className="rounded text-orange-500 focus:ring-orange-500"
+                    />
+                    <span className="text-sm text-gray-700">{range.label}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">Các tin tức thuộc nhóm điểm này sẽ được hiển thị mặc định và được chọn để phân tích khi dùng tính năng Tự động.</p>
             </div>
           </div>
         </div>

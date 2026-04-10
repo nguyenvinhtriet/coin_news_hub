@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useSettingsStore, useAppStore, Article } from '@/lib/store';
 import { getSupabaseClient } from '@/lib/supabase';
-import { Loader2, Sparkles, Save, CheckSquare, Square, ExternalLink, Rss, FileText, Calendar, Zap } from 'lucide-react';
+import { Loader2, Sparkles, Save, CheckSquare, Square, ExternalLink, Rss, FileText, Calendar, Zap, Filter } from 'lucide-react';
 
 export default function TabNewsFeed() {
   const settings = useSettingsStore();
@@ -14,6 +14,20 @@ export default function TabNewsFeed() {
   const [error, setError] = useState<string | null>(null);
   const [minScore, setMinScore] = useState<number>(7);
   const [mainSummary, setMainSummary] = useState<string | null>(null);
+  const [usedApi, setUsedApi] = useState<string | null>(null);
+  const [scoreFilter, setScoreFilter] = useState<string[]>(settings.defaultScoreFilter || ['9-10', '7-8', 'unscored']);
+
+  const SCORE_RANGES = [
+    { id: '9-10', label: '9-10', check: (s?: number) => s !== undefined && s >= 9 },
+    { id: '7-8', label: '7-8', check: (s?: number) => s !== undefined && s >= 7 && s <= 8 },
+    { id: '5-6', label: '5-6', check: (s?: number) => s !== undefined && s >= 5 && s <= 6 },
+    { id: '1-4', label: '1-4', check: (s?: number) => s !== undefined && s >= 1 && s <= 4 },
+    { id: 'unscored', label: 'Chưa chấm', check: (s?: number) => s === undefined }
+  ];
+
+  const filteredArticles = articles.filter(a => {
+    return SCORE_RANGES.some(range => scoreFilter.includes(range.id) && range.check(a.ai_score));
+  });
 
   const fetchRSSData = async () => {
     const urls = settings.rssUrls.split('\n').map(u => u.trim()).filter(u => u);
@@ -150,7 +164,8 @@ export default function TabNewsFeed() {
           payload: {
             articlesData,
             hotCriteria: settings.hotCriteria,
-            apiKey: settings.geminiApiKey
+            apiKey: settings.geminiApiKey,
+            groqApiKey: settings.groqApiKey
           }
         })
       });
@@ -224,7 +239,7 @@ export default function TabNewsFeed() {
         }));
 
         const { error: insertError } = await supabase.from('articles').insert(dataToInsert);
-        if (insertError) throw insertError;
+        if (insertError) throw new Error(insertError.message || JSON.stringify(insertError));
       }
 
       if (existingArticles.length > 0) {
@@ -233,24 +248,29 @@ export default function TabNewsFeed() {
             .from('articles')
             .update({ ai_score: a.ai_score, ai_analysis: a.ai_analysis })
             .eq('id', a.id);
-          if (updateError) throw updateError;
+          if (updateError) throw new Error(updateError.message || JSON.stringify(updateError));
         }
       }
 
       setArticles(articles.map(a => a.selected ? { ...a, selected: false, from_db: true } : a));
       alert(`Đã lưu thành công ${selectedArticles.length} tin bài vào Database!`);
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Lỗi khi lưu vào Supabase.");
+      console.error("Error details:", err);
+      const errMsg = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      if (errMsg.includes("Forbidden use of secret API key in browser")) {
+        setError("Lỗi cấu hình Supabase: Bạn đang sử dụng 'Service Role Key' (khóa bí mật) thay vì 'Anon Key' (khóa công khai). Vui lòng vào Supabase Dashboard -> Project Settings -> API để copy đúng khóa 'anon' (public) và cập nhật lại trong Cài đặt.");
+      } else {
+        setError(errMsg || "Lỗi khi lưu vào Supabase.");
+      }
     } finally {
       setSaving(false);
     }
   };
 
   const generateReportAndSave = async () => {
-    const selectedArticles = articles.filter(a => a.selected && (a.ai_score === undefined || a.ai_score >= minScore));
+    const selectedArticles = filteredArticles.filter(a => a.selected && a.ai_score !== undefined);
     if (selectedArticles.length === 0) {
-      setError(`Vui lòng chọn ít nhất 1 tin bài thỏa mãn điểm số >= ${minScore} để phân tích chi tiết và tạo báo cáo.`);
+      setError(`Vui lòng chọn ít nhất 1 tin bài đã được chấm điểm để phân tích chi tiết và tạo báo cáo.`);
       return;
     }
 
@@ -265,6 +285,7 @@ export default function TabNewsFeed() {
     setSaving(true);
     setError(null);
     setMainSummary(null);
+    setUsedApi(null);
 
     try {
       const supabase = getSupabaseClient(supabaseUrl, supabaseAnonKey);
@@ -278,7 +299,8 @@ export default function TabNewsFeed() {
           action: 'analyze_and_report',
           payload: {
             articlesData: selectedArticles.map(a => ({ id: a.id, title: a.title, summary: a.description, link: a.link })),
-            apiKey: settings.geminiApiKey
+            apiKey: settings.geminiApiKey,
+            groqApiKey: settings.groqApiKey
           }
         })
       });
@@ -290,6 +312,7 @@ export default function TabNewsFeed() {
       const notes = data.notes || {};
       
       setMainSummary(reportContent);
+      setUsedApi(data.usedApi);
 
       // Update articles with detailed notes
       const updatedArticles = articles.map(article => {
@@ -305,15 +328,20 @@ export default function TabNewsFeed() {
         .from('reports')
         .insert([{ content: reportContent, is_sent: false }]);
 
-      if (reportError) throw reportError;
+      if (reportError) throw new Error(reportError.message || JSON.stringify(reportError));
 
       // Deselect the ones we just processed
       setArticles(updatedArticles.map(a => selectedArticles.find(sa => sa.id === a.id) ? { ...a, selected: false } : a));
       
       alert(`Đã phân tích chi tiết, tạo báo cáo và lưu thành công!`);
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Lỗi khi tạo báo cáo hoặc lưu vào Supabase.");
+      console.error("Error details:", err);
+      const errMsg = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      if (errMsg.includes("Forbidden use of secret API key in browser")) {
+        setError("Lỗi cấu hình Supabase: Bạn đang sử dụng 'Service Role Key' (khóa bí mật) thay vì 'Anon Key' (khóa công khai). Vui lòng vào Supabase Dashboard -> Project Settings -> API để copy đúng khóa 'anon' (public) và cập nhật lại trong Cài đặt.");
+      } else {
+        setError(errMsg || "Lỗi khi tạo báo cáo hoặc lưu vào Supabase.");
+      }
     } finally {
       setSaving(false);
     }
@@ -333,6 +361,7 @@ export default function TabNewsFeed() {
     setSaving(true);
     setError(null);
     setMainSummary(null);
+    setUsedApi(null);
 
     try {
       // 1. Fetch RSS
@@ -353,7 +382,8 @@ export default function TabNewsFeed() {
           payload: {
             articlesData: articlesToScore,
             hotCriteria: settings.hotCriteria,
-            apiKey: settings.geminiApiKey
+            apiKey: settings.geminiApiKey,
+            groqApiKey: settings.groqApiKey
           }
         })
       });
@@ -373,10 +403,12 @@ export default function TabNewsFeed() {
       scoredArticles.sort((a, b) => (b.ai_score || 0) - (a.ai_score || 0));
 
       // 3. Filter >= minScore
-      const highScored = scoredArticles.filter(a => (a.ai_score || 0) >= minScore);
+      const highScored = scoredArticles.filter(a => {
+        return SCORE_RANGES.some(range => range.id !== 'unscored' && scoreFilter.includes(range.id) && range.check(a.ai_score));
+      });
       if (highScored.length === 0) {
         setArticles(scoredArticles);
-        alert(`Đã tải và chấm điểm xong. Không có tin nào đạt điểm >= ${minScore}.`);
+        alert(`Đã tải và chấm điểm xong. Không có tin nào thỏa mãn bộ lọc điểm để phân tích sâu.`);
         return;
       }
 
@@ -388,7 +420,8 @@ export default function TabNewsFeed() {
           action: 'analyze_and_report',
           payload: {
             articlesData: highScored.map(a => ({ id: a.id, title: a.title, summary: a.description, link: a.link })),
-            apiKey: settings.geminiApiKey
+            apiKey: settings.geminiApiKey,
+            groqApiKey: settings.groqApiKey
           }
         })
       });
@@ -399,6 +432,7 @@ export default function TabNewsFeed() {
       const reportContent = reportData.summary;
       const notes = reportData.notes || {};
       setMainSummary(reportContent);
+      setUsedApi(reportData.usedApi);
 
       scoredArticles = scoredArticles.map(article => {
         if (notes[article.id]) {
@@ -446,11 +480,16 @@ export default function TabNewsFeed() {
       }
 
       setArticles(scoredArticles);
-      alert(`Hoàn tất quy trình Tự động! Đã xử lý và lưu ${highScored.length} tin bài (>= ${minScore}).`);
+      alert(`Hoàn tất quy trình Tự động! Đã xử lý và lưu ${highScored.length} tin bài.`);
 
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Lỗi trong quá trình Tự động.");
+      console.error("Error details:", err);
+      const errMsg = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      if (errMsg.includes("Forbidden use of secret API key in browser")) {
+        setError("Lỗi cấu hình Supabase: Bạn đang sử dụng 'Service Role Key' (khóa bí mật) thay vì 'Anon Key' (khóa công khai). Vui lòng vào Supabase Dashboard -> Project Settings -> API để copy đúng khóa 'anon' (public) và cập nhật lại trong Cài đặt.");
+      } else {
+        setError(errMsg || "Lỗi trong quá trình Tự động.");
+      }
     } finally {
       setLoading(false);
       setAnalyzing(false);
@@ -510,6 +549,11 @@ export default function TabNewsFeed() {
             className="prose prose-sm max-w-none text-emerald-800"
             dangerouslySetInnerHTML={{ __html: mainSummary.replace(/\n/g, '<br/>') }}
           />
+          {usedApi && (
+            <div className="mt-4 pt-4 border-t border-emerald-200/50 text-right text-xs text-emerald-600/70 font-medium">
+              Powered by {usedApi}
+            </div>
+          )}
         </div>
       )}
 
@@ -518,25 +562,32 @@ export default function TabNewsFeed() {
           <div className="p-4 border-b border-gray-200 flex flex-wrap justify-between items-center bg-gray-50 gap-4">
             <div className="flex items-center gap-4">
               <button onClick={toggleSelectAll} className="flex items-center gap-2 text-gray-600 hover:text-blue-600 font-medium">
-                {articles.every(a => a.selected) ? <CheckSquare className="w-5 h-5 text-blue-600" /> : <Square className="w-5 h-5" />}
-                Chọn tất cả ({articles.filter(a => a.selected).length}/{articles.length})
+                {filteredArticles.length > 0 && filteredArticles.every(a => a.selected) ? <CheckSquare className="w-5 h-5 text-blue-600" /> : <Square className="w-5 h-5" />}
+                Chọn tất cả ({filteredArticles.filter(a => a.selected).length}/{filteredArticles.length})
               </button>
             </div>
             <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 w-full sm:w-auto -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
-              <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg px-3 py-1.5 shrink-0">
-                <span className="text-sm font-medium text-gray-700">Lọc điểm &ge;</span>
-                <input
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={minScore}
-                  onChange={(e) => setMinScore(Number(e.target.value))}
-                  className="w-12 bg-transparent border-none outline-none text-sm font-bold text-blue-600 text-center"
-                />
+              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <span className="text-sm font-medium text-gray-700 flex items-center gap-1"><Filter className="w-4 h-4"/> Lọc:</span>
+                {SCORE_RANGES.map(range => (
+                  <label key={range.id} className="flex items-center gap-1 cursor-pointer bg-white px-2 py-1 rounded border border-gray-200 hover:bg-gray-50 transition-colors">
+                    <input
+                      type="checkbox"
+                      checked={scoreFilter.includes(range.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) setScoreFilter([...scoreFilter, range.id]);
+                        else setScoreFilter(scoreFilter.filter(id => id !== range.id));
+                      }}
+                      className="rounded text-blue-600 focus:ring-blue-500 w-3.5 h-3.5"
+                    />
+                    <span className="text-xs text-gray-700 whitespace-nowrap">{range.label}</span>
+                  </label>
+                ))}
               </div>
+              <div className="h-6 w-px bg-gray-200 mx-1 hidden sm:block"></div>
               <button
                 onClick={analyzeWithAI}
-                disabled={loading || analyzing || !articles.some(a => a.selected)}
+                disabled={loading || analyzing || !filteredArticles.some(a => a.selected)}
                 className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 text-sm font-medium whitespace-nowrap shrink-0"
               >
                 {analyzing ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Sparkles className="w-4 h-4 shrink-0" />}
@@ -544,7 +595,7 @@ export default function TabNewsFeed() {
               </button>
               <button
                 onClick={generateReportAndSave}
-                disabled={saving || !articles.some(a => a.selected)}
+                disabled={saving || !filteredArticles.some(a => a.selected)}
                 className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors disabled:opacity-50 text-sm font-medium whitespace-nowrap shrink-0"
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <FileText className="w-4 h-4 shrink-0" />}
@@ -552,7 +603,7 @@ export default function TabNewsFeed() {
               </button>
               <button
                 onClick={saveArticlesToDB}
-                disabled={saving || !articles.some(a => a.selected)}
+                disabled={saving || !filteredArticles.some(a => a.selected)}
                 className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 text-sm font-medium whitespace-nowrap shrink-0"
               >
                 {saving ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <Save className="w-4 h-4 shrink-0" />}
@@ -561,43 +612,49 @@ export default function TabNewsFeed() {
             </div>
           </div>
           <div className="divide-y divide-gray-100">
-            {articles.map((article) => (
-              <div key={article.id} className={`p-4 flex gap-4 transition-colors ${article.selected ? 'bg-blue-50/50' : 'hover:bg-gray-50'}`}>
-                <button onClick={() => toggleSelect(article.id)} className="mt-1 text-gray-400 hover:text-blue-600">
-                  {article.selected ? <CheckSquare className="w-5 h-5 text-blue-600" /> : <Square className="w-5 h-5" />}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-4">
-                    <a href={article.link} target="_blank" rel="noreferrer" className="text-lg font-semibold text-gray-900 hover:text-blue-600 flex items-center gap-2 group">
-                      {article.title}
-                      <ExternalLink className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </a>
-                    {article.ai_score !== undefined && (
-                      <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold text-lg shrink-0 ${
-                        article.ai_score >= 8 ? 'bg-red-100 text-red-700' :
-                        article.ai_score >= 5 ? 'bg-yellow-100 text-yellow-700' :
-                        'bg-gray-100 text-gray-700'
-                      }`}>
-                        {article.ai_score}
+            {filteredArticles.length === 0 ? (
+              <div className="p-8 text-center text-gray-500">
+                Không có tin tức nào phù hợp với bộ lọc.
+              </div>
+            ) : (
+              filteredArticles.map((article) => (
+                <div key={article.id} className={`p-4 flex gap-4 transition-colors ${article.selected ? 'bg-blue-50/50' : 'hover:bg-gray-50'}`}>
+                  <button onClick={() => toggleSelect(article.id)} className="mt-1 text-gray-400 hover:text-blue-600">
+                    {article.selected ? <CheckSquare className="w-5 h-5 text-blue-600" /> : <Square className="w-5 h-5" />}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-4">
+                      <a href={article.link} target="_blank" rel="noreferrer" className="text-lg font-semibold text-gray-900 hover:text-blue-600 flex items-center gap-2 group">
+                        {article.title}
+                        <ExternalLink className="w-4 h-4 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </a>
+                      {article.ai_score !== undefined && (
+                        <div className={`flex items-center justify-center w-10 h-10 rounded-full font-bold text-lg shrink-0 ${
+                          article.ai_score >= 8 ? 'bg-red-100 text-red-700' :
+                          article.ai_score >= 5 ? 'bg-yellow-100 text-yellow-700' :
+                          'bg-gray-100 text-gray-700'
+                        }`}>
+                          {article.ai_score}
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-500 mt-1 line-clamp-2">{article.description}</p>
+                    
+                    {article.ai_analysis && (
+                      <div className="mt-3 bg-blue-50/50 border border-blue-100 p-3 rounded-lg flex gap-2">
+                        <Sparkles className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                        <p className="text-sm text-blue-900">{article.ai_analysis}</p>
                       </div>
                     )}
-                  </div>
-                  <p className="text-sm text-gray-500 mt-1 line-clamp-2">{article.description}</p>
-                  
-                  {article.ai_analysis && (
-                    <div className="mt-3 bg-blue-50/50 border border-blue-100 p-3 rounded-lg flex gap-2">
-                      <Sparkles className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
-                      <p className="text-sm text-blue-900">{article.ai_analysis}</p>
+                    
+                    <div className="mt-3 flex items-center gap-4 text-xs text-gray-400">
+                      <span className={article.from_db ? 'text-emerald-600 font-medium' : ''}>{article.source}</span>
+                      <span>{new Date(article.pubDate).toLocaleString('vi-VN')}</span>
                     </div>
-                  )}
-                  
-                  <div className="mt-3 flex items-center gap-4 text-xs text-gray-400">
-                    <span className={article.from_db ? 'text-emerald-600 font-medium' : ''}>{article.source}</span>
-                    <span>{new Date(article.pubDate).toLocaleString('vi-VN')}</span>
                   </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
       )}

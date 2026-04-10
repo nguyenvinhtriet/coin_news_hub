@@ -163,7 +163,8 @@ export default function TabDispatcher() {
           action: type === 'basic' ? 'telegram_basic' : 'telegram_advance',
           payload: {
             articlesData: articles.map(a => ({ title: a.title, summary: a.summary, link: a.link, score: a.ai_score, analysis: a.ai_analysis })),
-            apiKey: settings.geminiApiKey
+            apiKey: settings.geminiApiKey,
+            groqApiKey: settings.groqApiKey
           }
         })
       });

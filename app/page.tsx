@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Send, Settings, Newspaper, LogOut } from 'lucide-react';
+import { LayoutDashboard, Send, Settings, Newspaper, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
 import TabNewsFeed from '@/components/TabNewsFeed';
 import TabDispatcher from '@/components/TabDispatcher';
 import TabSettings from '@/components/TabSettings';
@@ -11,6 +11,7 @@ import { useAuthStore } from '@/lib/store';
 export default function Home() {
   const [activeTab, setActiveTab] = useState<'feed' | 'dispatcher' | 'settings'>('feed');
   const [mounted, setMounted] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { isAuthenticated, logout } = useAuthStore();
 
   // Prevent hydration mismatch for Zustand persist
@@ -39,59 +40,85 @@ export default function Home() {
       </header>
 
       {/* Sidebar (Desktop) */}
-      <aside className="hidden md:flex w-64 bg-white border-r border-gray-200 flex-col fixed inset-y-0 z-10">
-        <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-          <div>
-            <div className="flex items-center gap-2 text-blue-600 font-bold text-xl">
-              <LayoutDashboard className="w-6 h-6" />
-              <span>AI News Hub</span>
+      <aside className={`hidden md:flex bg-white border-r border-gray-200 flex-col fixed inset-y-0 z-10 transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-20'}`}>
+        <button 
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)} 
+          className="absolute -right-3 top-8 bg-white border border-gray-200 rounded-full p-1 text-gray-500 hover:text-blue-600 z-20 shadow-sm"
+        >
+          {isSidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        </button>
+
+        <div className={`p-6 border-b border-gray-100 flex ${isSidebarOpen ? 'justify-between' : 'justify-center'} items-center h-20`}>
+          {isSidebarOpen ? (
+            <>
+              <div>
+                <div className="flex items-center gap-2 text-blue-600 font-bold text-xl">
+                  <LayoutDashboard className="w-6 h-6 shrink-0" />
+                  <span className="whitespace-nowrap">AI News Hub</span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Aggregator & Dispatcher</p>
+              </div>
+              <button onClick={logout} className="text-gray-400 hover:text-red-600 transition-colors shrink-0" title="Đăng xuất">
+                <LogOut className="w-5 h-5" />
+              </button>
+            </>
+          ) : (
+            <div className="flex flex-col items-center gap-4">
+              <LayoutDashboard className="w-6 h-6 text-blue-600 shrink-0" />
             </div>
-            <p className="text-xs text-gray-500 mt-1">Aggregator & Dispatcher</p>
-          </div>
-          <button onClick={logout} className="text-gray-400 hover:text-red-600 transition-colors" title="Đăng xuất">
-            <LogOut className="w-5 h-5" />
-          </button>
+          )}
         </div>
         
-        <nav className="flex-1 p-4 space-y-1">
+        <nav className="flex-1 p-4 space-y-2 overflow-hidden flex flex-col">
           <button
             onClick={() => setActiveTab('feed')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+            className={`w-full flex items-center gap-3 py-3 rounded-lg text-sm font-medium transition-colors ${isSidebarOpen ? 'px-4' : 'justify-center px-0'} ${
               activeTab === 'feed' ? 'bg-blue-50 text-blue-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
             }`}
+            title="Khám phá & Đánh giá"
           >
-            <Newspaper className="w-5 h-5" />
-            Khám phá & Đánh giá
+            <Newspaper className="w-5 h-5 shrink-0" />
+            {isSidebarOpen && <span className="whitespace-nowrap">Khám phá & Đánh giá</span>}
           </button>
           
           <button
             onClick={() => setActiveTab('dispatcher')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+            className={`w-full flex items-center gap-3 py-3 rounded-lg text-sm font-medium transition-colors ${isSidebarOpen ? 'px-4' : 'justify-center px-0'} ${
               activeTab === 'dispatcher' ? 'bg-sky-50 text-sky-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
             }`}
+            title="Quản lý & Gửi Telegram"
           >
-            <Send className="w-5 h-5" />
-            Quản lý & Gửi Telegram
+            <Send className="w-5 h-5 shrink-0" />
+            {isSidebarOpen && <span className="whitespace-nowrap">Quản lý & Gửi Telegram</span>}
           </button>
           
           <button
             onClick={() => setActiveTab('settings')}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+            className={`w-full flex items-center gap-3 py-3 rounded-lg text-sm font-medium transition-colors ${isSidebarOpen ? 'px-4' : 'justify-center px-0'} ${
               activeTab === 'settings' ? 'bg-gray-100 text-gray-900' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
             }`}
+            title="Cấu hình hệ thống"
           >
-            <Settings className="w-5 h-5" />
-            Cấu hình hệ thống
+            <Settings className="w-5 h-5 shrink-0" />
+            {isSidebarOpen && <span className="whitespace-nowrap">Cấu hình hệ thống</span>}
           </button>
+
+          {!isSidebarOpen && (
+            <button onClick={logout} className="w-full flex items-center justify-center gap-3 py-3 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors mt-auto" title="Đăng xuất">
+              <LogOut className="w-5 h-5 shrink-0" />
+            </button>
+          )}
         </nav>
         
-        <div className="p-4 border-t border-gray-100 text-xs text-gray-400 text-center">
-          Powered by Gemini AI & Supabase
-        </div>
+        {isSidebarOpen && (
+          <div className="p-4 border-t border-gray-100 text-xs text-gray-400 text-center whitespace-nowrap">
+            Powered by Gemini AI & Supabase
+          </div>
+        )}
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 md:ml-64 p-4 md:p-8 pb-24 md:pb-8">
+      <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-20'} p-4 md:p-8 pb-24 md:pb-8`}>
         <div className="max-w-6xl mx-auto">
           {activeTab === 'feed' && <TabNewsFeed />}
           {activeTab === 'dispatcher' && <TabDispatcher />}
