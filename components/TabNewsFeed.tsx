@@ -210,8 +210,8 @@ export default function TabNewsFeed() {
       return;
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || settings.supabaseUrl;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || settings.supabaseAnonKey;
+    const supabaseUrl = settings.supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = settings.supabaseAnonKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
       setError("Vui lòng cấu hình Supabase trong Environment Variables hoặc Settings.");
@@ -274,8 +274,8 @@ export default function TabNewsFeed() {
       return;
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || settings.supabaseUrl;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || settings.supabaseAnonKey;
+    const supabaseUrl = settings.supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = settings.supabaseAnonKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
       setError("Vui lòng cấu hình Supabase trong Environment Variables hoặc Settings.");
@@ -348,8 +348,8 @@ export default function TabNewsFeed() {
   };
 
   const runAutoProcess = async () => {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || settings.supabaseUrl;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || settings.supabaseAnonKey;
+    const supabaseUrl = settings.supabaseUrl || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = settings.supabaseAnonKey || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl || !supabaseAnonKey) {
       setError("Vui lòng cấu hình Supabase trong Environment Variables hoặc Settings để dùng tính năng Tự động.");
