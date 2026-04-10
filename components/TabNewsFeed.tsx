@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useSettingsStore, useAppStore, Article } from '@/lib/store';
 import { getSupabaseClient } from '@/lib/supabase';
-import { Loader2, Sparkles, Save, CheckSquare, Square, ExternalLink, Rss, FileText, Calendar } from 'lucide-react';
+import { Loader2, Sparkles, Save, CheckSquare, Square, ExternalLink, Rss, FileText, Calendar, Zap } from 'lucide-react';
 
 export default function TabNewsFeed() {
   const settings = useSettingsStore();
@@ -15,39 +15,37 @@ export default function TabNewsFeed() {
   const [minScore, setMinScore] = useState<number>(7);
   const [mainSummary, setMainSummary] = useState<string | null>(null);
 
-  const fetchRSS = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const urls = settings.rssUrls.split('\n').map(u => u.trim()).filter(u => u);
-      if (urls.length === 0) {
-        throw new Error("Vui lòng nhập ít nhất 1 RSS URL trong phần Cấu hình.");
-      }
+  const fetchRSSData = async () => {
+    const urls = settings.rssUrls.split('\n').map(u => u.trim()).filter(u => u);
+    if (urls.length === 0) {
+      throw new Error("Vui lòng nhập ít nhất 1 RSS URL trong phần Cấu hình.");
+    }
 
-      const targetDate = new Date(selectedDate);
-      targetDate.setHours(0, 0, 0, 0);
-      const nextDate = new Date(targetDate);
-      nextDate.setDate(nextDate.getDate() + 1);
+    const targetDate = new Date(selectedDate);
+    targetDate.setHours(0, 0, 0, 0);
+    const nextDate = new Date(targetDate);
+    nextDate.setDate(nextDate.getDate() + 1);
 
-      let dbArticles: any[] = [];
-      if (settings.supabaseUrl && settings.supabaseAnonKey) {
-        const supabase = getSupabaseClient(settings.supabaseUrl, settings.supabaseAnonKey);
-        if (supabase) {
-          const { data, error: dbError } = await supabase
-            .from('articles')
-            .select('*')
-            .gte('created_at', targetDate.toISOString())
-            .lt('created_at', nextDate.toISOString());
-          
-          if (!dbError && data) {
-            dbArticles = data;
-          }
+    let dbArticles: any[] = [];
+    if (settings.supabaseUrl && settings.supabaseAnonKey) {
+      const supabase = getSupabaseClient(settings.supabaseUrl, settings.supabaseAnonKey);
+      if (supabase) {
+        const { data, error: dbError } = await supabase
+          .from('articles')
+          .select('*')
+          .gte('created_at', targetDate.toISOString())
+          .lt('created_at', nextDate.toISOString());
+        
+        if (!dbError && data) {
+          dbArticles = data;
         }
       }
+    }
 
-      const allArticles: Article[] = [];
-      
-      for (const url of urls) {
+    const allArticles: Article[] = [];
+    
+    for (const url of urls) {
+      try {
         const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`);
         const data = await res.json();
         if (data.status === 'ok') {
@@ -63,39 +61,60 @@ export default function TabNewsFeed() {
           }));
           allArticles.push(...items);
         }
+      } catch (e) {
+        console.error("Error fetching RSS URL:", url, e);
       }
-      
-      const filteredRss = allArticles.filter(a => {
-        const pubDate = new Date(a.pubDate);
-        return pubDate >= targetDate && pubDate < nextDate;
-      });
+    }
+    
+    const filteredRss = allArticles.filter(a => {
+      const pubDate = new Date(a.pubDate);
+      return pubDate >= targetDate && pubDate < nextDate;
+    });
 
-      const merged: Article[] = [...dbArticles.map(dbA => ({
+    const currentArticlesMap = new Map(articles.map(a => [a.link, a]));
+
+    const merged: Article[] = [...dbArticles.map(dbA => {
+      const existing = currentArticlesMap.get(dbA.link);
+      return {
         id: dbA.id,
         title: dbA.title,
         link: dbA.link,
         description: dbA.summary,
         pubDate: dbA.created_at,
         source: 'Database',
-        ai_score: dbA.ai_score,
-        ai_analysis: dbA.ai_analysis,
-        selected: false,
+        ai_score: existing?.ai_score !== undefined ? existing.ai_score : dbA.ai_score,
+        ai_analysis: existing?.ai_analysis || dbA.ai_analysis,
+        selected: existing ? existing.selected : false,
         from_db: true
-      }))];
+      };
+    })];
 
-      for (const rssA of filteredRss) {
-        if (!merged.find(m => m.link === rssA.link)) {
+    for (const rssA of filteredRss) {
+      if (!merged.find(m => m.link === rssA.link)) {
+        const existing = currentArticlesMap.get(rssA.link);
+        if (existing) {
+          merged.push(existing);
+        } else {
           merged.push(rssA);
         }
       }
+    }
 
-      merged.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
-      
-      if (merged.length === 0) {
-        throw new Error(`Không có tin tức nào trong ngày ${selectedDate}.`);
-      }
+    merged.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
+    
+    if (merged.length === 0) {
+      throw new Error(`Không có tin tức nào trong ngày ${selectedDate}.`);
+    }
 
-      setArticles(merged.slice(0, 30));
+    return merged.slice(0, 100);
+  };
+
+  const fetchRSS = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await fetchRSSData();
+      setArticles(data);
     } catch (err: any) {
       setError(err.message || "Lỗi khi tải RSS.");
     } finally {
@@ -291,6 +310,142 @@ export default function TabNewsFeed() {
     }
   };
 
+  const runAutoProcess = async () => {
+    if (!settings.supabaseUrl || !settings.supabaseAnonKey) {
+      setError("Vui lòng cấu hình Supabase trong phần Cấu hình để dùng tính năng Tự động.");
+      return;
+    }
+
+    setLoading(true);
+    setAnalyzing(true);
+    setSaving(true);
+    setError(null);
+    setMainSummary(null);
+
+    try {
+      // 1. Fetch RSS
+      const fetchedArticles = await fetchRSSData();
+      
+      // 2. Score All
+      const articlesToScore = fetchedArticles.map(a => ({
+        id: a.id,
+        title: a.title,
+        description: a.description
+      }));
+
+      const scoreRes = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'score_only',
+          payload: {
+            articlesData: articlesToScore,
+            hotCriteria: settings.hotCriteria,
+            apiKey: settings.geminiApiKey
+          }
+        })
+      });
+
+      const scoreData = await scoreRes.json();
+      if (!scoreRes.ok) throw new Error(scoreData.error || "Lỗi khi gọi API chấm điểm.");
+
+      const aiResults = scoreData.results;
+      let scoredArticles = fetchedArticles.map(article => {
+        const aiData = aiResults.find((r: any) => r.id === article.id);
+        if (aiData) {
+          return { ...article, ai_score: aiData.score };
+        }
+        return article;
+      });
+
+      scoredArticles.sort((a, b) => (b.ai_score || 0) - (a.ai_score || 0));
+
+      // 3. Filter >= minScore
+      const highScored = scoredArticles.filter(a => (a.ai_score || 0) >= minScore);
+      if (highScored.length === 0) {
+        setArticles(scoredArticles);
+        alert(`Đã tải và chấm điểm xong. Không có tin nào đạt điểm >= ${minScore}.`);
+        return;
+      }
+
+      // 4. Analyze & Report
+      const reportRes = await fetch('/api/gemini', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'analyze_and_report',
+          payload: {
+            articlesData: highScored.map(a => ({ id: a.id, title: a.title, summary: a.description, link: a.link })),
+            apiKey: settings.geminiApiKey
+          }
+        })
+      });
+
+      const reportData = await reportRes.json();
+      if (!reportRes.ok) throw new Error(reportData.error || "Lỗi khi gọi API tạo báo cáo.");
+
+      const reportContent = reportData.summary;
+      const notes = reportData.notes || {};
+      setMainSummary(reportContent);
+
+      scoredArticles = scoredArticles.map(article => {
+        if (notes[article.id]) {
+          return { ...article, ai_analysis: notes[article.id] };
+        }
+        return article;
+      });
+
+      // 5. Save to DB
+      const supabase = getSupabaseClient(settings.supabaseUrl, settings.supabaseAnonKey);
+      if (supabase) {
+        // Save Report
+        await supabase.from('reports').insert([{ content: reportContent, is_sent: false }]);
+
+        // Save Articles
+        const newArticles = highScored.filter(a => !a.from_db);
+        const existingArticles = highScored.filter(a => a.from_db);
+
+        if (newArticles.length > 0) {
+          const dataToInsert = newArticles.map(a => {
+            const finalA = scoredArticles.find(sa => sa.id === a.id) || a;
+            return {
+              title: finalA.title,
+              link: finalA.link,
+              summary: finalA.description,
+              ai_score: finalA.ai_score || 0,
+              ai_analysis: finalA.ai_analysis || '',
+              created_at: new Date(finalA.pubDate).toISOString()
+            };
+          });
+          await supabase.from('articles').insert(dataToInsert);
+        }
+
+        if (existingArticles.length > 0) {
+          for (const a of existingArticles) {
+            const finalA = scoredArticles.find(sa => sa.id === a.id) || a;
+            await supabase
+              .from('articles')
+              .update({ ai_score: finalA.ai_score, ai_analysis: finalA.ai_analysis })
+              .eq('id', finalA.id);
+          }
+        }
+
+        scoredArticles = scoredArticles.map(a => highScored.find(ha => ha.id === a.id) ? { ...a, from_db: true } : a);
+      }
+
+      setArticles(scoredArticles);
+      alert(`Hoàn tất quy trình Tự động! Đã xử lý và lưu ${highScored.length} tin bài (>= ${minScore}).`);
+
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Lỗi trong quá trình Tự động.");
+    } finally {
+      setLoading(false);
+      setAnalyzing(false);
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -310,11 +465,19 @@ export default function TabNewsFeed() {
           </div>
           <button
             onClick={fetchRSS}
-            disabled={loading || analyzing}
+            disabled={loading || analyzing || saving}
             className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
           >
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rss className="w-4 h-4" />}
+            {loading && !analyzing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Rss className="w-4 h-4" />}
             Tải RSS
+          </button>
+          <button
+            onClick={runAutoProcess}
+            disabled={loading || analyzing || saving}
+            className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 font-medium shadow-sm"
+          >
+            {(loading || analyzing || saving) ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            Tự động (All-in-one)
           </button>
         </div>
       </div>

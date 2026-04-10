@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSettingsStore } from '@/lib/store';
 import { getSupabaseClient } from '@/lib/supabase';
-import { Loader2, Send, CheckSquare, Square, CheckCircle2, Circle, RefreshCw, FileText } from 'lucide-react';
+import { Loader2, Send, CheckSquare, Square, CheckCircle2, Circle, RefreshCw, FileText, ListChecks } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface DBReport {
@@ -113,6 +113,76 @@ export default function TabDispatcher() {
     }
   };
 
+  const sendHighScoredArticlesToTelegram = async () => {
+    if (!settings.telegramBotToken || !settings.telegramChatId) {
+      setError("Vui lòng cấu hình Telegram Bot trong phần Cấu hình.");
+      return;
+    }
+
+    setSending(true);
+    setError(null);
+
+    try {
+      const supabase = getSupabaseClient(settings.supabaseUrl, settings.supabaseAnonKey);
+      if (!supabase) throw new Error("Không thể khởi tạo Supabase Client.");
+
+      // Lấy tin tức hôm nay có điểm >= 7
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const { data: articles, error: dbError } = await supabase
+        .from('articles')
+        .select('*')
+        .gte('ai_score', 7)
+        .gte('created_at', today.toISOString())
+        .lt('created_at', tomorrow.toISOString())
+        .order('ai_score', { ascending: false });
+
+      if (dbError) throw dbError;
+
+      if (!articles || articles.length === 0) {
+        alert("Không có tin tức nào trong ngày hôm nay đạt điểm >= 7 trong Database.");
+        return;
+      }
+
+      let message = `<b>🔥 DANH SÁCH TIN TỨC ĐÁNG CHÚ Ý (Điểm >= 7)</b>\nNgày: ${format(new Date(), 'dd/MM/yyyy')}\n\n`;
+      
+      articles.forEach((a, index) => {
+        message += `${index + 1}. <a href="${a.link}">${a.title}</a>\n`;
+        message += `🎯 Điểm: <b>${a.ai_score}</b>\n`;
+        if (a.ai_analysis) {
+          message += `💡 <i>${a.ai_analysis}</i>\n`;
+        }
+        message += `\n`;
+      });
+
+      const res = await fetch(`https://api.telegram.org/bot${settings.telegramBotToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: settings.telegramChatId,
+          text: message,
+          parse_mode: 'HTML',
+          disable_web_page_preview: true
+        })
+      });
+
+      const data = await res.json();
+      if (!data.ok) {
+        throw new Error(`Lỗi Telegram: ${data.description}`);
+      }
+
+      alert(`Đã gửi danh sách ${articles.length} tin tức (>= 7) qua Telegram!`);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Lỗi khi gửi danh sách tin tức qua Telegram.");
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -128,6 +198,14 @@ export default function TabDispatcher() {
           >
             <RefreshCw className={`w-4 h-4 shrink-0 ${loading ? 'animate-spin' : ''}`} />
             Làm mới
+          </button>
+          <button
+            onClick={sendHighScoredArticlesToTelegram}
+            disabled={sending}
+            className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 whitespace-nowrap shrink-0"
+          >
+            {sending ? <Loader2 className="w-4 h-4 animate-spin shrink-0" /> : <ListChecks className="w-4 h-4 shrink-0" />}
+            Gửi List RSS &ge; 7
           </button>
           <button
             onClick={sendToTelegram}
