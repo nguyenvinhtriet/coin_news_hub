@@ -238,7 +238,7 @@ export default function TabNewsFeed() {
           created_at: new Date(a.pubDate).toISOString()
         }));
 
-        const { error: insertError } = await supabase.from('articles').insert(dataToInsert);
+        const { error: insertError } = await supabase.from('articles').upsert(dataToInsert, { onConflict: 'link' });
         if (insertError) throw new Error(insertError.message || JSON.stringify(insertError));
       }
 
@@ -463,7 +463,7 @@ export default function TabNewsFeed() {
               created_at: new Date(finalA.pubDate).toISOString()
             };
           });
-          await supabase.from('articles').insert(dataToInsert);
+          await supabase.from('articles').upsert(dataToInsert, { onConflict: 'link' });
         }
 
         if (existingArticles.length > 0) {

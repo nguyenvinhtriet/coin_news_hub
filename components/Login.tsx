@@ -29,7 +29,7 @@ export default function Login() {
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-      // Compare with the pre-computed hash of 'Admin@123q' or from ENV
+      // Compare with the pre-computed hash from ENV or default hash
       const targetHash = process.env.NEXT_PUBLIC_ADMIN_PASSWORD_HASH || '51ca4d506b7c02bb4e779be45a4b4b85516b2294dfd11db96f15d9bd97287c2c';
 
       if (hashHex === targetHash) {
