@@ -27,25 +27,91 @@ async function fetchRSS(urls: string[]) {
   return allArticles;
 }
 
+export async function GET(req: Request) {
+  return handleCron(req, true);
+}
+
 export async function POST(req: Request) {
+  return handleCron(req, false);
+}
+
+async function handleCron(req: Request, isGet: boolean) {
   try {
     const authHeader = req.headers.get('authorization');
-    const { payload } = await req.json();
+    let payload: any = {};
+    
+    if (!isGet) {
+      try { payload = await req.json(); } catch (e) {}
+    }
     
     // 1. Verify Cron Secret
-    const cronSecret = process.env.CRON_SECRET || payload?.cronSecret;
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    const cronSecret = process.env.CRON_SECRET || payload?.cronSecret || 'my-super-secret-cron-key-123';
+    if (authHeader !== `Bearer ${cronSecret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2. Extract settings from payload (since cron won't have local storage)
-    const { supabaseUrl, supabaseAnonKey, telegramBotToken, telegramChatId, geminiApiKey, groqApiKey, rssUrls, hotCriteria, portfolio } = payload;
+    // 2. Extract settings (Priority: Payload -> Env Vars)
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || payload.supabaseUrl;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || payload.supabaseAnonKey;
+    const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN || payload.telegramBotToken;
+    const telegramChatId = process.env.TELEGRAM_CHAT_ID || payload.telegramChatId;
+    const geminiApiKey = process.env.GEMINI_API_KEY || payload.geminiApiKey;
+    const groqApiKey = process.env.GROQ_API_KEY || payload.groqApiKey;
 
     if (!supabaseUrl || !supabaseAnonKey || !telegramBotToken || !telegramChatId || (!geminiApiKey && !groqApiKey)) {
-      return NextResponse.json({ error: 'Missing required configuration in payload' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing required configuration (Env vars or payload)' }, { status: 400 });
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+    // Fetch dynamic settings from Supabase app_settings if not in payload
+    let rssUrls = payload.rssUrls || process.env.NEXT_PUBLIC_RSS_URLS;
+    let hotCriteria = payload.hotCriteria || process.env.NEXT_PUBLIC_HOT_CRITERIA;
+    let portfolio = payload.portfolio || [];
+    let promptAnalyzeReport = payload.promptAnalyzeReport;
+    let promptTelegramBasic = payload.promptTelegramBasic;
+    let promptTelegramAdvance = payload.promptTelegramAdvance;
+    let promptPortfolioImpact = payload.promptPortfolioImpact;
+    let promptSentiment = payload.promptSentiment;
+
+    try {
+      const { data: settingsData } = await supabase.from('app_settings').select('*');
+      if (settingsData) {
+        const dbRss = settingsData.find(s => s.key === 'rss_urls')?.value;
+        if (dbRss && !payload.rssUrls) rssUrls = dbRss;
+        
+        const dbCriteria = settingsData.find(s => s.key === 'hot_criteria')?.value;
+        if (dbCriteria && !payload.hotCriteria) hotCriteria = dbCriteria;
+
+        const dbPortfolio = settingsData.find(s => s.key === 'portfolio')?.value;
+        if (dbPortfolio && !payload.portfolio) portfolio = JSON.parse(dbPortfolio);
+
+        const dbPromptAnalyzeReport = settingsData.find(s => s.key === 'prompt_analyze_report')?.value;
+        if (dbPromptAnalyzeReport && !payload.promptAnalyzeReport) promptAnalyzeReport = dbPromptAnalyzeReport;
+
+        const dbPromptTelegramBasic = settingsData.find(s => s.key === 'prompt_telegram_basic')?.value;
+        if (dbPromptTelegramBasic && !payload.promptTelegramBasic) promptTelegramBasic = dbPromptTelegramBasic;
+
+        const dbPromptTelegramAdvance = settingsData.find(s => s.key === 'prompt_telegram_advance')?.value;
+        if (dbPromptTelegramAdvance && !payload.promptTelegramAdvance) promptTelegramAdvance = dbPromptTelegramAdvance;
+
+        const dbPromptPortfolioImpact = settingsData.find(s => s.key === 'prompt_portfolio_impact')?.value;
+        if (dbPromptPortfolioImpact && !payload.promptPortfolioImpact) promptPortfolioImpact = dbPromptPortfolioImpact;
+
+        const dbPromptSentiment = settingsData.find(s => s.key === 'prompt_sentiment')?.value;
+        if (dbPromptSentiment && !payload.promptSentiment) promptSentiment = dbPromptSentiment;
+      }
+    } catch (e) {
+      console.error("Error fetching app_settings:", e);
+    }
+
+    if (!rssUrls) {
+       rssUrls = 'https://cointelegraph.com/rss\nhttps://www.coindesk.com/arc/outboundfeeds/rss/'; // fallback
+    }
+    if (!hotCriteria) {
+       hotCriteria = 'Đánh giá xem tin tức này có mức độ Critical (nghiêm trọng) hoặc Hot (nóng) đối với thị trường tài chính, chứng khoán toàn cầu và Crypto hay không. Chấm điểm từ 1-10 và giải thích ngắn gọn.';
+    }
+
     const urls = rssUrls.split('\n').filter((u: string) => u.trim() !== '');
 
     // 3. Fetch RSS
@@ -119,7 +185,8 @@ export async function POST(req: Request) {
           articlesData: topArticles.map(a => ({ title: a.title, link: a.link, score: a.ai_score })),
           portfolio,
           apiKey: geminiApiKey,
-          groqApiKey
+          groqApiKey,
+          customPrompt: promptTelegramAdvance
         }
       })
     });
@@ -150,7 +217,8 @@ export async function POST(req: Request) {
         payload: {
           articlesData: topArticles.map(a => ({ title: a.title, description: a.description, score: a.ai_score })),
           apiKey: geminiApiKey,
-          groqApiKey
+          groqApiKey,
+          customPrompt: promptSentiment
         }
       })
     });

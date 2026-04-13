@@ -8,7 +8,27 @@ Hệ thống đã được thiết kế một API endpoint riêng tại `/api/cr
 
 ### Cách thiết lập Cron Job:
 
-Vì ứng dụng được deploy trên Vercel/Cloud Run, bạn có thể sử dụng các dịch vụ gọi API tự động miễn phí như **cron-job.org** hoặc **GitHub Actions**.
+Hệ thống cung cấp sẵn API tại `/api/cron` để chạy toàn bộ quy trình tự động. Có 2 cách để thiết lập:
+
+#### Cách 1: Dùng Vercel Cron (Khuyên dùng nếu host trên Vercel)
+Vercel Cron sẽ gửi request **GET**. Do đó, bạn **BẮT BUỘC** phải cấu hình toàn bộ API Keys trong phần **Environment Variables** của Vercel (bao gồm cả `CRON_SECRET`).
+1. Tạo file `vercel.json` ở thư mục gốc của dự án (đã có sẵn trong code). Nội dung file:
+```json
+{
+  "crons": [
+    {
+      "path": "/api/cron",
+      "schedule": "0 2,11 * * *"
+    }
+  ]
+}
+```
+*(Lịch trên tương đương 9:00 AM và 6:00 PM giờ Việt Nam)*
+2. Vào Vercel Dashboard > Settings > Environment Variables, thêm biến `CRON_SECRET` (ví dụ: my-super-secret-cron-key-123).
+3. Hệ thống sẽ tự động lấy danh sách RSS, Tiêu chí đánh giá, Prompts và Danh mục đầu tư từ Database (bảng `app_settings`) nếu bạn đã nhấn "Lưu cài đặt" ở tab Cài đặt.
+
+#### Cách 2: Dùng cron-job.org (Hoặc các dịch vụ bên thứ 3)
+Dịch vụ ngoài cần gửi request **POST** kèm theo cấu hình của bạn.
 
 **Bước 1: Lấy thông tin cấu hình**
 API `/api/cron` yêu cầu truyền lên một JSON payload chứa toàn bộ cấu hình của bạn (vì Cron Job chạy độc lập trên server và không có Local Storage của trình duyệt).
@@ -54,6 +74,25 @@ API `/api/cron` yêu cầu truyền lên một JSON payload chứa toàn bộ c�
 **Bước 3:** Copy và chạy đoạn mã SQL sau:
 
 ```sql
+-- Tạo bảng articles
+CREATE TABLE IF NOT EXISTS public.articles (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    title TEXT NOT NULL,
+    link TEXT NOT NULL UNIQUE,
+    summary TEXT,
+    ai_score INTEGER,
+    ai_analysis TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
+-- Tạo bảng reports
+CREATE TABLE IF NOT EXISTS public.reports (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    content TEXT NOT NULL,
+    is_sent BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT TIMEZONE('utc'::text, NOW()) NOT NULL
+);
+
 -- Tạo bảng market_sentiment
 CREATE TABLE IF NOT EXISTS public.market_sentiment (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -72,10 +111,20 @@ CREATE TABLE IF NOT EXISTS public.app_settings (
 );
 
 -- Bật RLS (Row Level Security)
+ALTER TABLE public.articles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.market_sentiment ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
 
 -- Cho phép đọc/ghi công khai (Vì ứng dụng dùng Anon Key)
+CREATE POLICY "Allow public read access on articles" ON public.articles FOR SELECT USING (true);
+CREATE POLICY "Allow public insert access on articles" ON public.articles FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update access on articles" ON public.articles FOR UPDATE USING (true);
+
+CREATE POLICY "Allow public read access on reports" ON public.reports FOR SELECT USING (true);
+CREATE POLICY "Allow public insert access on reports" ON public.reports FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update access on reports" ON public.reports FOR UPDATE USING (true);
+
 CREATE POLICY "Allow public read access on market_sentiment" ON public.market_sentiment FOR SELECT USING (true);
 CREATE POLICY "Allow public insert access on market_sentiment" ON public.market_sentiment FOR INSERT WITH CHECK (true);
 CREATE POLICY "Allow public update access on market_sentiment" ON public.market_sentiment FOR UPDATE USING (true);

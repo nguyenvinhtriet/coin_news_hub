@@ -2,8 +2,10 @@
 
 import { useState } from 'react';
 import { useSettingsStore } from '@/lib/store';
-import { Save, Database, MessageSquare, Rss, Info, Sparkles, Filter, CloudDownload, CloudUpload } from 'lucide-react';
+import { Save, Database, MessageSquare, Rss, Info, Sparkles, Filter, CloudDownload, CloudUpload, Clock } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
+
+import { DEFAULT_PROMPT_ANALYZE_REPORT, DEFAULT_PROMPT_TELEGRAM_BASIC, DEFAULT_PROMPT_TELEGRAM_ADVANCE, DEFAULT_PROMPT_PORTFOLIO_IMPACT, DEFAULT_PROMPT_SENTIMENT } from '@/lib/store';
 
 export default function TabSettings() {
   const settings = useSettingsStore();
@@ -16,19 +18,25 @@ export default function TabSettings() {
     setSaved(true);
     
     // Auto sync to Supabase if configured
-    if (settings.supabaseUrl && settings.supabaseAnonKey && settings.rssUrls) {
+    if (settings.supabaseUrl && settings.supabaseAnonKey) {
       try {
         const supabase = createClient(settings.supabaseUrl, settings.supabaseAnonKey);
-        await supabase.from('app_settings').upsert({ key: 'rss_urls', value: settings.rssUrls });
+        if (settings.rssUrls) await supabase.from('app_settings').upsert({ key: 'rss_urls', value: settings.rssUrls });
+        if (settings.hotCriteria) await supabase.from('app_settings').upsert({ key: 'hot_criteria', value: settings.hotCriteria });
+        if (settings.promptAnalyzeReport) await supabase.from('app_settings').upsert({ key: 'prompt_analyze_report', value: settings.promptAnalyzeReport });
+        if (settings.promptTelegramBasic) await supabase.from('app_settings').upsert({ key: 'prompt_telegram_basic', value: settings.promptTelegramBasic });
+        if (settings.promptTelegramAdvance) await supabase.from('app_settings').upsert({ key: 'prompt_telegram_advance', value: settings.promptTelegramAdvance });
+        if (settings.promptPortfolioImpact) await supabase.from('app_settings').upsert({ key: 'prompt_portfolio_impact', value: settings.promptPortfolioImpact });
+        if (settings.promptSentiment) await supabase.from('app_settings').upsert({ key: 'prompt_sentiment', value: settings.promptSentiment });
       } catch (err) {
-        console.error('Failed to sync RSS to DB:', err);
+        console.error('Failed to sync settings to DB:', err);
       }
     }
 
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const loadRssFromDb = async () => {
+  const loadSettingsFromDb = async () => {
     if (!settings.supabaseUrl || !settings.supabaseAnonKey) {
       setSyncMessage('Vui lòng cấu hình Supabase trước.');
       setTimeout(() => setSyncMessage(''), 3000);
@@ -38,13 +46,29 @@ export default function TabSettings() {
     setSyncMessage('');
     try {
       const supabase = createClient(settings.supabaseUrl, settings.supabaseAnonKey);
-      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'rss_urls').single();
+      const { data, error } = await supabase.from('app_settings').select('*');
       if (error) throw error;
-      if (data && data.value) {
-        settings.setSettings({ rssUrls: data.value });
-        setSyncMessage('Đã tải RSS từ Database thành công!');
+      if (data) {
+        const dbRss = data.find(s => s.key === 'rss_urls')?.value;
+        const dbCriteria = data.find(s => s.key === 'hot_criteria')?.value;
+        const dbPromptAnalyzeReport = data.find(s => s.key === 'prompt_analyze_report')?.value;
+        const dbPromptTelegramBasic = data.find(s => s.key === 'prompt_telegram_basic')?.value;
+        const dbPromptTelegramAdvance = data.find(s => s.key === 'prompt_telegram_advance')?.value;
+        const dbPromptPortfolioImpact = data.find(s => s.key === 'prompt_portfolio_impact')?.value;
+        const dbPromptSentiment = data.find(s => s.key === 'prompt_sentiment')?.value;
+        
+        settings.setSettings({ 
+          rssUrls: dbRss || settings.rssUrls,
+          hotCriteria: dbCriteria || settings.hotCriteria,
+          promptAnalyzeReport: dbPromptAnalyzeReport || settings.promptAnalyzeReport,
+          promptTelegramBasic: dbPromptTelegramBasic || settings.promptTelegramBasic,
+          promptTelegramAdvance: dbPromptTelegramAdvance || settings.promptTelegramAdvance,
+          promptPortfolioImpact: dbPromptPortfolioImpact || settings.promptPortfolioImpact,
+          promptSentiment: dbPromptSentiment || settings.promptSentiment
+        });
+        setSyncMessage('Đã tải cấu hình từ DB thành công!');
       } else {
-        setSyncMessage('Không tìm thấy dữ liệu RSS trên Database.');
+        setSyncMessage('Không tìm thấy dữ liệu trên Database.');
       }
     } catch (err: any) {
       console.error(err);
@@ -55,29 +79,66 @@ export default function TabSettings() {
     }
   };
 
-    const sqlDDL = `CREATE TABLE articles (
+  const testCronJob = async () => {
+    setIsSyncing(true);
+    setSyncMessage('Đang chạy Cron Job thử nghiệm...');
+    try {
+      const res = await fetch('/api/cron', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${settings.cronSecret || 'my-super-secret-cron-key-123'}`
+        },
+        body: JSON.stringify({
+          supabaseUrl: settings.supabaseUrl,
+          supabaseAnonKey: settings.supabaseAnonKey,
+          telegramBotToken: settings.telegramBotToken,
+          telegramChatId: settings.telegramChatId,
+          geminiApiKey: settings.geminiApiKey,
+          groqApiKey: settings.groqApiKey,
+          rssUrls: settings.rssUrls,
+          hotCriteria: settings.hotCriteria,
+          portfolio: settings.portfolio,
+          promptAnalyzeReport: settings.promptAnalyzeReport,
+          promptTelegramBasic: settings.promptTelegramBasic,
+          promptTelegramAdvance: settings.promptTelegramAdvance,
+          promptPortfolioImpact: settings.promptPortfolioImpact,
+          promptSentiment: settings.promptSentiment
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Lỗi khi chạy Cron Job');
+      setSyncMessage('Cron Job chạy thành công! Vui lòng kiểm tra Telegram.');
+    } catch (err: any) {
+      console.error(err);
+      setSyncMessage('Lỗi Cron: ' + (err.message || 'Không xác định'));
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncMessage(''), 5000);
+    }
+  };
+
+    const sqlDDL = `-- Tạo bảng articles
+CREATE TABLE IF NOT EXISTS public.articles (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   title TEXT NOT NULL,
-  link TEXT NOT NULL,
+  link TEXT NOT NULL UNIQUE,
   summary TEXT,
   ai_score INTEGER,
   ai_analysis TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE reports (
+-- Tạo bảng reports
+CREATE TABLE IF NOT EXISTS public.reports (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   content TEXT NOT NULL,
-  is_sent BOOLEAN DEFAULT FALSE,
+  is_sent BOOLEAN DEFAULT false,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-CREATE TABLE app_settings (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL
-);
-
-CREATE TABLE market_sentiment (
+-- Tạo bảng market_sentiment
+CREATE TABLE IF NOT EXISTS public.market_sentiment (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   date DATE NOT NULL UNIQUE,
   bullish_score INTEGER NOT NULL,
@@ -85,7 +146,36 @@ CREATE TABLE market_sentiment (
   trend TEXT NOT NULL,
   summary TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);`;
+);
+
+-- Tạo bảng app_settings để lưu cấu hình
+CREATE TABLE IF NOT EXISTS public.app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+-- Bật RLS (Row Level Security)
+ALTER TABLE public.articles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.market_sentiment ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.app_settings ENABLE ROW LEVEL SECURITY;
+
+-- Cho phép đọc/ghi công khai (Vì ứng dụng dùng Anon Key)
+CREATE POLICY "Allow public read access on articles" ON public.articles FOR SELECT USING (true);
+CREATE POLICY "Allow public insert access on articles" ON public.articles FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update access on articles" ON public.articles FOR UPDATE USING (true);
+
+CREATE POLICY "Allow public read access on reports" ON public.reports FOR SELECT USING (true);
+CREATE POLICY "Allow public insert access on reports" ON public.reports FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update access on reports" ON public.reports FOR UPDATE USING (true);
+
+CREATE POLICY "Allow public read access on market_sentiment" ON public.market_sentiment FOR SELECT USING (true);
+CREATE POLICY "Allow public insert access on market_sentiment" ON public.market_sentiment FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update access on market_sentiment" ON public.market_sentiment FOR UPDATE USING (true);
+
+CREATE POLICY "Allow public read access on app_settings" ON public.app_settings FOR SELECT USING (true);
+CREATE POLICY "Allow public insert access on app_settings" ON public.app_settings FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update access on app_settings" ON public.app_settings FOR UPDATE USING (true);`;
 
   const SCORE_RANGES = [
     { id: '9-10', label: '9 - 10 Điểm' },
@@ -163,7 +253,7 @@ CREATE TABLE market_sentiment (
                 <label className="block text-sm font-medium text-gray-700">Danh sách RSS URL (Mỗi dòng 1 link)</label>
                 <button 
                   type="button" 
-                  onClick={loadRssFromDb}
+                  onClick={loadSettingsFromDb}
                   disabled={isSyncing}
                   className="text-xs text-orange-600 hover:text-orange-700 flex items-center gap-1 font-medium disabled:opacity-50"
                 >
@@ -213,6 +303,102 @@ CREATE TABLE market_sentiment (
                 ))}
               </div>
               <p className="text-xs text-gray-500 mt-2">Các tin tức thuộc nhóm điểm này sẽ được hiển thị mặc định và được chọn để phân tích khi dùng tính năng Tự động.</p>
+            </div>
+          </div>
+        </div>
+
+        <hr className="border-gray-100" />
+
+        {/* Cron Job Settings */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800">
+            <Clock className="w-5 h-5 text-blue-500" />
+            Cấu hình Tự động hoá (Cron Job)
+          </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Cron Secret Key</label>
+              <input
+                type="text"
+                value={settings.cronSecret}
+                onChange={(e) => settings.setSettings({ cronSecret: e.target.value })}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                placeholder="my-super-secret-cron-key-123"
+              />
+              <p className="text-xs text-gray-500 mt-1">Mã bí mật để xác thực khi gọi API <code>/api/cron</code>. Bạn cần cấu hình mã này trên Vercel (Environment Variables) hoặc truyền qua Header <code>Authorization: Bearer [key]</code> nếu dùng dịch vụ ngoài.</p>
+            </div>
+          </div>
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <h4 className="font-medium text-blue-900">Kiểm tra Cron Job</h4>
+              <p className="text-sm text-blue-700 mt-1">Chạy thử quy trình tự động ngay lập tức để kiểm tra cấu hình và kết nối Telegram.</p>
+            </div>
+            <button
+              type="button"
+              onClick={testCronJob}
+              disabled={isSyncing}
+              className="whitespace-nowrap bg-blue-600 text-white hover:bg-blue-700 px-6 py-2 rounded-lg font-medium transition-colors disabled:opacity-50"
+            >
+              {isSyncing ? 'Đang chạy...' : 'Chạy thử ngay'}
+            </button>
+          </div>
+        </div>
+
+        <hr className="border-gray-100" />
+
+        {/* Prompts Settings */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800">
+            <MessageSquare className="w-5 h-5 text-purple-500" />
+            Cấu hình Prompts AI (Nâng cao)
+          </h3>
+          <p className="text-sm text-gray-600">Tùy chỉnh các câu lệnh (prompts) gửi cho AI để thay đổi cách AI phân tích và báo cáo.</p>
+          
+          <div className="grid grid-cols-1 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Prompt: Báo cáo Tổng hợp (Analyze & Report)</label>
+              <textarea
+                value={settings.promptAnalyzeReport || DEFAULT_PROMPT_ANALYZE_REPORT}
+                onChange={(e) => settings.setSettings({ promptAnalyzeReport: e.target.value })}
+                rows={4}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Prompt: Telegram Basic</label>
+              <textarea
+                value={settings.promptTelegramBasic || DEFAULT_PROMPT_TELEGRAM_BASIC}
+                onChange={(e) => settings.setSettings({ promptTelegramBasic: e.target.value })}
+                rows={4}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Prompt: Telegram Advanced</label>
+              <textarea
+                value={settings.promptTelegramAdvance || DEFAULT_PROMPT_TELEGRAM_ADVANCE}
+                onChange={(e) => settings.setSettings({ promptTelegramAdvance: e.target.value })}
+                rows={4}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Prompt: Phân tích Danh mục (Portfolio Impact)</label>
+              <textarea
+                value={settings.promptPortfolioImpact || DEFAULT_PROMPT_PORTFOLIO_IMPACT}
+                onChange={(e) => settings.setSettings({ promptPortfolioImpact: e.target.value })}
+                rows={4}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Prompt: Phân tích Tâm lý (Sentiment Trend)</label>
+              <textarea
+                value={settings.promptSentiment || DEFAULT_PROMPT_SENTIMENT}
+                onChange={(e) => settings.setSettings({ promptSentiment: e.target.value })}
+                rows={4}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 outline-none transition-all text-sm"
+              />
             </div>
           </div>
         </div>

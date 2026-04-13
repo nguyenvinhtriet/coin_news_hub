@@ -1,7 +1,14 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { BookOpen, CheckCircle2, Lightbulb, Rocket, Shield, Zap, Clock, Bell, BarChart3, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function TabGuideline() {
+  const [origin, setOrigin] = useState('https://<domain-cua-ban>');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      setOrigin(window.location.origin);
+    }
+  }, []);
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 md:p-8">
@@ -50,13 +57,13 @@ export default function TabGuideline() {
             />
             <FeatureCard 
               icon={<SettingsIcon className="w-5 h-5 text-gray-600" />}
-              title="Cấu hình hệ thống (Settings)"
-              description="Quản lý an toàn các API Keys (Supabase, Gemini, Groq, Telegram). Tuỳ chỉnh danh sách nguồn RSS và tiêu chí đánh giá (Prompt) cho AI một cách linh hoạt."
+              title="Cấu hình hệ thống & Prompts (Settings)"
+              description="Quản lý an toàn các API Keys (Supabase, Gemini, Groq, Telegram). Tuỳ chỉnh danh sách nguồn RSS và toàn bộ các câu lệnh (Prompts) cho AI một cách linh hoạt."
               details={
                 <ul className="list-disc pl-5 space-y-2 mt-2 text-sm text-gray-700">
                   <li><strong>API Keys:</strong> Nhập các key cần thiết. Dữ liệu này chỉ lưu trên trình duyệt của bạn (Local Storage), không gửi lên server ngoài ý muốn.</li>
                   <li><strong>Nguồn RSS:</strong> Thêm hoặc bớt các link RSS (mỗi link 1 dòng) để thay đổi nguồn tin tức.</li>
-                  <li><strong>Tiêu chí đánh giá:</strong> Bạn có thể sửa đổi Prompt (câu lệnh) để AI chấm điểm theo ý muốn (VD: Chỉ ưu tiên tin về Bitcoin, bỏ qua tin về Altcoin).</li>
+                  <li><strong>Cấu hình Prompts AI:</strong> Bạn có thể sửa đổi toàn bộ các câu lệnh (Prompts) mà hệ thống gửi cho AI (Báo cáo tổng hợp, Telegram, Phân tích danh mục, Phân tích tâm lý). Việc này giúp bạn toàn quyền kiểm soát văn phong, định dạng và nội dung mà AI tạo ra.</li>
                 </ul>
               }
             />
@@ -76,15 +83,39 @@ export default function TabGuideline() {
               title="Tự động hoá (Auto-Scheduler & Cron Jobs)"
               description="Hỗ trợ API Cron Job (/api/cron) để tự động lấy tin, chấm điểm, phân tích và gửi báo cáo Telegram vào các khung giờ cố định mà không cần thao tác thủ công."
               details={
-                <div className="mt-2 text-sm text-gray-700 space-y-2">
-                  <p>Hệ thống cung cấp sẵn API tại <code>/api/cron</code> để chạy toàn bộ quy trình tự động.</p>
-                  <p><strong>Cách thiết lập:</strong></p>
-                  <ol className="list-decimal pl-5 space-y-1">
-                    <li>Tạo tài khoản trên <strong>cron-job.org</strong>.</li>
-                    <li>Tạo Job mới gọi POST đến <code>https://&lt;domain-cua-ban&gt;/api/cron</code>.</li>
-                    <li>Thêm Header: <code>Authorization: Bearer my-super-secret-cron-key-123</code> (Đổi key này trong code nếu cần).</li>
-                    <li>Truyền Body (JSON) chứa cấu hình API keys và RSS của bạn. (Xem chi tiết trong file <code>DOCUMENTATION.md</code>).</li>
-                  </ol>
+                <div className="mt-2 text-sm text-gray-700 space-y-4">
+                  <p>Hệ thống cung cấp sẵn API tại <code>/api/cron</code> để chạy toàn bộ quy trình tự động. Có 2 cách để thiết lập:</p>
+                  
+                  <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <h5 className="font-semibold text-gray-900 mb-2">Cách 1: Dùng Vercel Cron (Khuyên dùng nếu host trên Vercel)</h5>
+                    <p className="mb-2">Vercel Cron sẽ gửi request <strong>GET</strong>. Do đó, bạn <strong>BẮT BUỘC</strong> phải cấu hình toàn bộ API Keys trong phần <strong>Environment Variables</strong> của Vercel (bao gồm cả <code>CRON_SECRET</code>).</p>
+                    <ol className="list-decimal pl-5 space-y-1">
+                      <li>Tạo file <code>vercel.json</code> ở thư mục gốc của dự án (đã có sẵn trong code).</li>
+                      <li>Vào Vercel Dashboard {'>'} Settings {'>'} Environment Variables, thêm biến <code>CRON_SECRET</code> (ví dụ: my-super-secret-cron-key-123).</li>
+                      <li>Hệ thống sẽ tự động lấy danh sách RSS và Tiêu chí đánh giá từ Database (bảng <code>app_settings</code>) nếu bạn đã nhấn "Lưu cài đặt" ở tab Cài đặt.</li>
+                    </ol>
+                  </div>
+
+                  <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                    <h5 className="font-semibold text-gray-900 mb-2">Cách 2: Dùng cron-job.org (Hoặc các dịch vụ bên thứ 3)</h5>
+                    <p className="mb-2">Dịch vụ ngoài cần gửi request <strong>POST</strong> kèm theo cấu hình của bạn.</p>
+                    <ol className="list-decimal pl-5 space-y-1">
+                      <li>Tạo tài khoản trên <strong>cron-job.org</strong>.</li>
+                      <li>Tạo Job mới gọi <strong>POST</strong> đến <code>{origin}/api/cron</code>.</li>
+                      <li>Thêm Header: <code>Authorization: Bearer [Cron Secret Key của bạn]</code>.</li>
+                      <li>Truyền Body (JSON) chứa cấu hình API keys và RSS của bạn. (Xem chi tiết trong file <code>DOCUMENTATION.md</code>).</li>
+                    </ol>
+                  </div>
+
+                  <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                    <h5 className="font-semibold text-blue-900 mb-2 flex items-center gap-2"><MessageSquare className="w-4 h-4" /> Lên lịch từ Telegram?</h5>
+                    <p className="text-blue-800">Telegram Bot <strong>không có sẵn tính năng tự động lên lịch (scheduler)</strong>. Để Bot tự động gửi tin nhắn mỗi ngày, bạn <strong>bắt buộc</strong> phải dùng Vercel Cron hoặc cron-job.org để "kích hoạt" hệ thống. Khi hệ thống được kích hoạt, nó sẽ tự động lấy tin, dùng AI phân tích và gửi kết quả vào Telegram của bạn.</p>
+                  </div>
+
+                  <p className="text-blue-600 font-medium flex items-center gap-1">
+                    <Lightbulb className="w-4 h-4" /> 
+                    Mẹo: Bạn có thể nhấn nút "Chạy thử Cron Job ngay" ở tab Cài đặt để kiểm tra xem luồng tự động có hoạt động và gửi tin nhắn Telegram thành công hay không.
+                  </p>
                 </div>
               }
             />

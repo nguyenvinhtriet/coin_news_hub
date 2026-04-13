@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useSettingsStore } from '@/lib/store';
 import { getSupabaseClient } from '@/lib/supabase';
-import { Loader2, Send, CheckSquare, Square, CheckCircle2, Circle, RefreshCw, FileText, Zap, BrainCircuit } from 'lucide-react';
+import { Loader2, Send, CheckSquare, Square, CheckCircle2, Circle, RefreshCw, FileText, Zap, BrainCircuit, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 
 interface DBReport {
@@ -203,6 +203,35 @@ export default function TabDispatcher() {
     }
   };
 
+  const deleteReport = async (id: string) => {
+    if (!confirm('Bạn có chắc chắn muốn xóa báo cáo này?')) return;
+
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || settings.supabaseUrl;
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || settings.supabaseAnonKey;
+      
+      if (!supabaseUrl || !supabaseAnonKey) {
+        throw new Error("Vui lòng cấu hình Supabase trong Environment Variables hoặc Settings.");
+      }
+
+      const supabase = getSupabaseClient(supabaseUrl, supabaseAnonKey);
+      if (!supabase) throw new Error("Không thể khởi tạo Supabase Client.");
+
+      const { error: dbError } = await supabase
+        .from('reports')
+        .delete()
+        .eq('id', id);
+
+      if (dbError) throw dbError;
+
+      // Refresh list
+      await fetchReports();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Lỗi khi xóa báo cáo.");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -261,12 +290,13 @@ export default function TabDispatcher() {
                 <th className="p-4 w-24 text-center whitespace-nowrap">Trạng thái</th>
                 <th className="p-4 min-w-[300px]">Nội dung Báo cáo</th>
                 <th className="p-4 w-32 whitespace-nowrap">Ngày tạo</th>
+                <th className="p-4 w-16 text-center whitespace-nowrap">Xóa</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
               {reports.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-8 text-center text-gray-500">
+                  <td colSpan={5} className="p-8 text-center text-gray-500">
                     {loading ? "Đang tải dữ liệu..." : "Chưa có báo cáo nào được lưu."}
                   </td>
                 </tr>
@@ -299,6 +329,15 @@ export default function TabDispatcher() {
                     </td>
                     <td className="p-4 text-xs text-gray-500 whitespace-nowrap">
                       {format(new Date(report.created_at), 'dd/MM/yyyy HH:mm')}
+                    </td>
+                    <td className="p-4 text-center">
+                      <button
+                        onClick={() => deleteReport(report.id)}
+                        className="text-red-400 hover:text-red-600 transition-colors p-1 rounded hover:bg-red-50"
+                        title="Xóa báo cáo"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </td>
                   </tr>
                 ))

@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import { useSettingsStore, useAppStore } from '@/lib/store';
+import { createClient } from '@supabase/supabase-js';
 import { Wallet, Plus, Trash2, TrendingUp, DollarSign, Sparkles, Loader2, TrendingDown, Minus, AlertCircle, Send } from 'lucide-react';
 
 export default function TabPortfolio() {
-  const { portfolio, setSettings, geminiApiKey, groqApiKey, telegramBotToken, telegramChatId } = useSettingsStore();
+  const { portfolio, setSettings, geminiApiKey, groqApiKey, telegramBotToken, telegramChatId, supabaseUrl, supabaseAnonKey } = useSettingsStore();
   const { articles } = useAppStore();
   const [newCoin, setNewCoin] = useState('');
   const [newAmount, setNewAmount] = useState('');
@@ -13,6 +14,17 @@ export default function TabPortfolio() {
   const [error, setError] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
+
+  const syncPortfolioToDB = async (newPortfolio: any[]) => {
+    if (supabaseUrl && supabaseAnonKey) {
+      try {
+        const supabase = createClient(supabaseUrl, supabaseAnonKey);
+        await supabase.from('app_settings').upsert({ key: 'portfolio', value: JSON.stringify(newPortfolio) });
+      } catch (err) {
+        console.error('Failed to sync portfolio to DB:', err);
+      }
+    }
+  };
 
   const handleAddCoin = () => {
     if (!newCoin.trim() || !newAmount || isNaN(Number(newAmount))) return;
@@ -27,6 +39,7 @@ export default function TabPortfolio() {
     }
     
     setSettings({ portfolio: updatedPortfolio });
+    syncPortfolioToDB(updatedPortfolio);
     setNewCoin('');
     setNewAmount('');
   };
@@ -35,6 +48,7 @@ export default function TabPortfolio() {
     const updatedPortfolio = [...portfolio];
     updatedPortfolio.splice(index, 1);
     setSettings({ portfolio: updatedPortfolio });
+    syncPortfolioToDB(updatedPortfolio);
   };
 
   const handleAnalyzeImpact = async () => {

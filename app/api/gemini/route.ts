@@ -119,14 +119,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ results, usedApi });
 
     } else if (action === 'analyze_and_report') {
-      const { articlesData, portfolio } = payload;
+      const { articlesData, portfolio, customPrompt } = payload;
       const cryptoData = await getCryptoPrices();
       const cryptoString = cryptoData ? JSON.stringify(cryptoData) : "Không thể lấy dữ liệu giá coin lúc này.";
       const currentTime = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
       const timeOfDay = new Date().getHours() < 12 ? 'Sáng' : new Date().getHours() < 18 ? 'Chiều' : 'Tối';
       const portfolioString = portfolio && portfolio.length > 0 ? JSON.stringify(portfolio) : "Không có danh mục đầu tư cụ thể.";
 
-      const reportPrompt = `Bạn là một chuyên gia kinh tế vĩ mô và chiến lược gia đầu tư cấp cao. Dựa vào danh sách các tin tức quan trọng và dữ liệu thị trường sau đây, hãy thực hiện 2 việc với độ CHÍNH XÁC và CHI TIẾT cao nhất:
+      let reportPrompt = customPrompt;
+      if (!reportPrompt) {
+        reportPrompt = `Bạn là một chuyên gia kinh tế vĩ mô và chiến lược gia đầu tư cấp cao. Dựa vào danh sách các tin tức quan trọng và dữ liệu thị trường sau đây, hãy thực hiện 2 việc với độ CHÍNH XÁC và CHI TIẾT cao nhất:
 
 THÔNG TIN THỊ TRƯỜNG HIỆN TẠI (Thời gian: ${currentTime} - Bản tin buổi ${timeOfDay}):
 Giá Crypto (USD, Biến động 24h & 7 ngày): ${cryptoString}
@@ -153,6 +155,14 @@ Trả về kết quả dưới dạng JSON object với cấu trúc:
     "id_tin_bai_2": "Ghi chú phân tích chi tiết và hệ lụy cho tin bài 2"
   }
 }`;
+      } else {
+        reportPrompt = reportPrompt
+          .replace('{currentTime}', currentTime)
+          .replace('{timeOfDay}', timeOfDay)
+          .replace('{cryptoString}', cryptoString)
+          .replace('{portfolioString}', portfolioString)
+          .replace('{articlesData}', JSON.stringify(articlesData));
+      }
 
       const geminiTask = async () => {
         const response = await ai!.models.generateContent({
@@ -186,11 +196,13 @@ Trả về kết quả dưới dạng JSON object với cấu trúc:
       return NextResponse.json({ ...result, usedApi });
 
     } else if (action === 'telegram_basic') {
-      const { articlesData } = payload;
+      const { articlesData, customPrompt } = payload;
       const currentTime = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
       const timeOfDay = new Date().getHours() < 12 ? 'Sáng' : new Date().getHours() < 18 ? 'Chiều' : 'Tối';
 
-      const prompt = `Bạn là trợ lý tài chính. Hãy tóm tắt danh sách tin tức sau thành một bản tin NGẮN GỌN để gửi Telegram.
+      let prompt = customPrompt;
+      if (!prompt) {
+        prompt = `Bạn là trợ lý tài chính. Hãy tóm tắt danh sách tin tức sau thành một bản tin NGẮN GỌN để gửi Telegram.
 Yêu cầu:
 - Trình bày dạng danh sách rõ ràng, format ĐẸP MẮT, dễ nhìn (sử dụng emoji hợp lý, ví dụ: 📰, 🚀, ⚠️, 💡).
 - Bắt đầu bằng tiêu đề: 🌅 Bản tin buổi ${timeOfDay} (${currentTime})
@@ -204,6 +216,12 @@ CHÚ Ý ĐỊNH DẠNG BẮT BUỘC:
 
 Danh sách tin:
 ${JSON.stringify(articlesData)}`;
+      } else {
+        prompt = prompt
+          .replace('{currentTime}', currentTime)
+          .replace('{timeOfDay}', timeOfDay)
+          .replace('{articlesData}', JSON.stringify(articlesData));
+      }
 
       const geminiTask = async () => {
         const response = await ai!.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
@@ -218,14 +236,16 @@ ${JSON.stringify(articlesData)}`;
       return NextResponse.json({ result: text, usedApi });
 
     } else if (action === 'telegram_advance') {
-      const { articlesData, portfolio } = payload;
+      const { articlesData, portfolio, customPrompt } = payload;
       const cryptoData = await getCryptoPrices();
       const cryptoString = cryptoData ? JSON.stringify(cryptoData) : "Không thể lấy dữ liệu giá coin lúc này.";
       const currentTime = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
       const timeOfDay = new Date().getHours() < 12 ? 'Sáng' : new Date().getHours() < 18 ? 'Chiều' : 'Tối';
       const portfolioString = portfolio && portfolio.length > 0 ? JSON.stringify(portfolio) : "Không có danh mục đầu tư cụ thể.";
 
-      const prompt = `Bạn là một chuyên gia kinh tế vĩ mô và chiến lược gia đầu tư cấp cao. Hãy viết một bài phân tích CHI TIẾT SÂU SẮC và CHÍNH XÁC để gửi Telegram dựa trên các tin tức và dữ liệu thị trường sau.
+      let prompt = customPrompt;
+      if (!prompt) {
+        prompt = `Bạn là một chuyên gia kinh tế vĩ mô và chiến lược gia đầu tư cấp cao. Hãy viết một bài phân tích CHI TIẾT SÂU SẮC và CHÍNH XÁC để gửi Telegram dựa trên các tin tức và dữ liệu thị trường sau.
 
 THÔNG TIN THỊ TRƯỜNG HIỆN TẠI (Thời gian: ${currentTime} - Bản tin buổi ${timeOfDay}):
 Giá Crypto (USD, Biến động 24h & 7 ngày): ${cryptoString}
@@ -249,6 +269,14 @@ CHÚ Ý ĐỊNH DẠNG BẮT BUỘC:
 
 Danh sách tin:
 ${JSON.stringify(articlesData)}`;
+      } else {
+        prompt = prompt
+          .replace('{currentTime}', currentTime)
+          .replace('{timeOfDay}', timeOfDay)
+          .replace('{cryptoString}', cryptoString)
+          .replace('{portfolioString}', portfolioString)
+          .replace('{articlesData}', JSON.stringify(articlesData));
+      }
 
       const geminiTask = async () => {
         const response = await ai!.models.generateContent({
@@ -267,8 +295,10 @@ ${JSON.stringify(articlesData)}`;
       return NextResponse.json({ result: text, usedApi });
 
     } else if (action === 'analyze_sentiment') {
-      const { articlesData } = payload;
-      const prompt = `Bạn là chuyên gia phân tích tâm lý thị trường tài chính. Dựa vào danh sách các tin tức quan trọng sau đây, hãy đánh giá tâm lý chung của thị trường.
+      const { articlesData, customPrompt } = payload;
+      let prompt = customPrompt;
+      if (!prompt) {
+        prompt = `Bạn là chuyên gia phân tích tâm lý thị trường tài chính. Dựa vào danh sách các tin tức quan trọng sau đây, hãy đánh giá tâm lý chung của thị trường.
       
 Nhiệm vụ:
 1. Chấm điểm Bullish (Lạc quan/Tăng giá) từ 0 đến 100.
@@ -286,6 +316,9 @@ Trả về kết quả dưới dạng JSON object với cấu trúc chính xác 
   "trend": "bullish",
   "summary": "Thị trường phản ứng tích cực với tin tức ETF..."
 }`;
+      } else {
+        prompt = prompt.replace('{articlesData}', JSON.stringify(articlesData));
+      }
 
       const geminiTask = async () => {
         const response = await ai!.models.generateContent({
@@ -320,11 +353,13 @@ Trả về kết quả dưới dạng JSON object với cấu trúc chính xác 
       return NextResponse.json({ result, usedApi });
 
     } else if (action === 'analyze_portfolio_impact') {
-      const { articlesData, portfolio } = payload;
+      const { articlesData, portfolio, customPrompt } = payload;
       const cryptoData = await getCryptoPrices();
       const cryptoString = cryptoData ? JSON.stringify(cryptoData) : "Không thể lấy dữ liệu giá coin lúc này.";
 
-      const prompt = `Bạn là một chuyên gia kinh tế và quản lý danh mục đầu tư cấp cao. Dựa vào danh sách tin tức mới nhất và dữ liệu thị trường (bao gồm biến động 24h và 7 ngày), hãy phân tích TOÀN DIỆN VÀ CHÍNH XÁC tác động lên danh mục đầu tư của người dùng.
+      let prompt = customPrompt;
+      if (!prompt) {
+        prompt = `Bạn là một chuyên gia kinh tế và quản lý danh mục đầu tư cấp cao. Dựa vào danh sách tin tức mới nhất và dữ liệu thị trường (bao gồm biến động 24h và 7 ngày), hãy phân tích TOÀN DIỆN VÀ CHÍNH XÁC tác động lên danh mục đầu tư của người dùng.
 
 THÔNG TIN THỊ TRƯỜNG (Giá, Biến động 24h, Biến động 7 ngày): ${cryptoString}
 DANH MỤC ĐẦU TƯ: ${JSON.stringify(portfolio)}
@@ -333,7 +368,8 @@ TIN TỨC: ${JSON.stringify(articlesData)}
 Yêu cầu phân tích:
 1. So sánh xu hướng hiện tại với dữ liệu 1 tuần qua để có góc nhìn tổng quan.
 2. Đánh giá chi tiết từng tin tức có thể tác động RIÊNG BIỆT đến từng loại tài sản như thế nào (ví dụ: tin quốc gia X chấp nhận thanh toán bằng đồng Y, tin update mạng lưới Z...).
-3. Đưa ra dự báo (predict) và hành động cụ thể (action) cho từng tài sản.
+3. CHỈ phân tích các tài sản có trong DANH MỤC ĐẦU TƯ của người dùng. KHÔNG phân tích các tài sản khác ngoài danh mục.
+4. Đưa ra dự báo (predict) và hành động cụ thể (action) cho từng tài sản trong danh mục.
 
 Trả về JSON object với cấu trúc:
 {
@@ -348,6 +384,12 @@ Trả về JSON object với cấu trúc:
     }
   ]
 }`;
+      } else {
+        prompt = prompt
+          .replace('{cryptoString}', cryptoString)
+          .replace('{portfolioString}', JSON.stringify(portfolio))
+          .replace('{articlesData}', JSON.stringify(articlesData));
+      }
 
       const geminiTask = async () => {
         const response = await ai!.models.generateContent({

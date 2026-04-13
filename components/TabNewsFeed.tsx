@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSettingsStore, useAppStore, Article } from '@/lib/store';
 import { getSupabaseClient } from '@/lib/supabase';
 import { Loader2, Sparkles, Save, CheckSquare, Square, ExternalLink, Rss, FileText, Calendar, Zap, Filter } from 'lucide-react';
@@ -16,6 +16,11 @@ export default function TabNewsFeed() {
   const [mainSummary, setMainSummary] = useState<string | null>(null);
   const [usedApi, setUsedApi] = useState<string | null>(null);
   const [scoreFilter, setScoreFilter] = useState<string[]>(settings.defaultScoreFilter || ['9-10', '7-8', 'unscored']);
+
+  useEffect(() => {
+    fetchRSS();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDate]);
 
   const SCORE_RANGES = [
     { id: '9-10', label: '9-10', check: (s?: number) => s !== undefined && s >= 9 },
@@ -239,7 +244,12 @@ export default function TabNewsFeed() {
       const existingArticles = selectedArticles.filter(a => a.from_db);
 
       if (newArticles.length > 0) {
-        const dataToInsert = newArticles.map(a => ({
+        // Check existing links to avoid inserting duplicates if UNIQUE constraint is missing
+        const links = newArticles.map(a => a.link);
+        const { data: existingData } = await supabase.from('articles').select('link').in('link', links);
+        const existingLinks = new Set(existingData?.map(d => d.link) || []);
+        
+        const dataToInsert = newArticles.filter(a => !existingLinks.has(a.link)).map(a => ({
           title: a.title,
           link: a.link,
           summary: a.description,
@@ -248,8 +258,10 @@ export default function TabNewsFeed() {
           created_at: new Date(a.pubDate).toISOString()
         }));
 
-        const { error: insertError } = await supabase.from('articles').upsert(dataToInsert, { onConflict: 'link' });
-        if (insertError) throw new Error(insertError.message || JSON.stringify(insertError));
+        if (dataToInsert.length > 0) {
+          const { error: insertError } = await supabase.from('articles').insert(dataToInsert);
+          if (insertError) throw new Error(insertError.message || JSON.stringify(insertError));
+        }
       }
 
       if (existingArticles.length > 0) {
@@ -309,8 +321,10 @@ export default function TabNewsFeed() {
           action: 'analyze_and_report',
           payload: {
             articlesData: selectedArticles.map(a => ({ id: a.id, title: a.title, summary: a.description, link: a.link })),
+            portfolio: settings.portfolio,
             apiKey: settings.geminiApiKey,
-            groqApiKey: settings.groqApiKey
+            groqApiKey: settings.groqApiKey,
+            customPrompt: settings.promptAnalyzeReport
           }
         })
       });
@@ -430,8 +444,10 @@ export default function TabNewsFeed() {
           action: 'analyze_and_report',
           payload: {
             articlesData: highScored.map(a => ({ id: a.id, title: a.title, summary: a.description, link: a.link })),
+            portfolio: settings.portfolio,
             apiKey: settings.geminiApiKey,
-            groqApiKey: settings.groqApiKey
+            groqApiKey: settings.groqApiKey,
+            customPrompt: settings.promptAnalyzeReport
           }
         })
       });
