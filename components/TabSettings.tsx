@@ -75,6 +75,16 @@ CREATE TABLE reports (
 CREATE TABLE app_settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
+);
+
+CREATE TABLE market_sentiment (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  date DATE NOT NULL UNIQUE,
+  bullish_score INTEGER NOT NULL,
+  bearish_score INTEGER NOT NULL,
+  trend TEXT NOT NULL,
+  summary TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );`;
 
   const SCORE_RANGES = [
