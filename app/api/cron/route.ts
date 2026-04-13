@@ -49,9 +49,14 @@ export async function POST(req: Request) {
     const urls = rssUrls.split('\n').filter((u: string) => u.trim() !== '');
 
     // 3. Fetch RSS
-    const articles = await fetchRSS(urls);
+    const allArticles = await fetchRSS(urls);
+    
+    // Filter articles to only those published in the last 12 hours
+    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+    const articles = allArticles.filter(a => new Date(a.pubDate) >= twelveHoursAgo);
+
     if (articles.length === 0) {
-      return NextResponse.json({ message: 'No articles found' });
+      return NextResponse.json({ message: 'No recent articles found in the last 12 hours' });
     }
 
     // 4. Score Articles via Gemini API

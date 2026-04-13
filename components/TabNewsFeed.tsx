@@ -35,10 +35,20 @@ export default function TabNewsFeed() {
       throw new Error("Vui lòng nhập ít nhất 1 RSS URL trong phần Cấu hình.");
     }
 
-    const targetDate = new Date(selectedDate);
-    targetDate.setHours(0, 0, 0, 0);
-    const nextDate = new Date(targetDate);
-    nextDate.setDate(nextDate.getDate() + 1);
+    const todayStr = new Date().toISOString().split('T')[0];
+    let targetDate: Date;
+    let nextDate: Date;
+
+    if (selectedDate === todayStr) {
+      // If today, fetch last 24 hours to ensure we don't miss yesterday evening's news
+      nextDate = new Date();
+      targetDate = new Date(nextDate.getTime() - 24 * 60 * 60 * 1000);
+    } else {
+      targetDate = new Date(selectedDate);
+      targetDate.setHours(0, 0, 0, 0);
+      nextDate = new Date(targetDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+    }
 
     let dbArticles: any[] = [];
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || settings.supabaseUrl;

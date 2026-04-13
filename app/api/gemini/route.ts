@@ -126,7 +126,7 @@ export async function POST(req: Request) {
       const timeOfDay = new Date().getHours() < 12 ? 'Sáng' : new Date().getHours() < 18 ? 'Chiều' : 'Tối';
       const portfolioString = portfolio && portfolio.length > 0 ? JSON.stringify(portfolio) : "Không có danh mục đầu tư cụ thể.";
 
-      const reportPrompt = `Bạn là chuyên gia phân tích tài chính và chiến lược gia cấp cao. Dựa vào danh sách các tin tức quan trọng và dữ liệu thị trường sau đây, hãy thực hiện 2 việc:
+      const reportPrompt = `Bạn là một chuyên gia kinh tế vĩ mô và chiến lược gia đầu tư cấp cao. Dựa vào danh sách các tin tức quan trọng và dữ liệu thị trường sau đây, hãy thực hiện 2 việc với độ CHÍNH XÁC và CHI TIẾT cao nhất:
 
 THÔNG TIN THỊ TRƯỜNG HIỆN TẠI (Thời gian: ${currentTime} - Bản tin buổi ${timeOfDay}):
 Giá Crypto (USD, Biến động 24h & 7 ngày): ${cryptoString}
@@ -134,13 +134,13 @@ Giá Crypto (USD, Biến động 24h & 7 ngày): ${cryptoString}
 DANH MỤC ĐẦU TƯ CỦA NGƯỜI DÙNG:
 ${portfolioString}
 
-1. Viết một BÁO CÁO TỔNG HỢP THỊ TRƯỜNG (main summary) thật CHI TIẾT. 
-- Đánh giá sâu sắc ảnh hưởng chung đến thị trường (Chứng khoán, Crypto, Kinh tế vĩ mô). 
-- BẮT BUỘC phải có phần DỰ BÁO XU HƯỚNG (Forecast) sắp tới và KHUYẾN NGHỊ HÀNH ĐỘNG (Recommendation) cho nhà đầu tư.
-- LƯU Ý THỜI GIAN: Đây là bản tin buổi ${timeOfDay}. Hãy phân tích xu hướng thị trường trong khoảng thời gian vừa qua, so sánh với dữ liệu 7 ngày để có cái nhìn toàn cảnh.
-- PHÂN TÍCH DANH MỤC: Dựa vào danh mục đầu tư của người dùng (nếu có), hãy phân tích xem các tin tức và xu hướng thị trường hiện tại ảnh hưởng CỤ THỂ như thế nào đến các tài sản họ đang nắm giữ. Đưa ra lời khuyên riêng cho danh mục này.
+1. Viết một BÁO CÁO TỔNG HỢP THỊ TRƯỜNG (main summary) thật CHI TIẾT và SÂU SẮC. 
+- Đánh giá toàn diện ảnh hưởng chung đến thị trường (Chứng khoán, Crypto, Kinh tế vĩ mô, Lãi suất, Lạm phát nếu có). 
+- BẮT BUỘC phải có phần DỰ BÁO XU HƯỚNG (Forecast) ngắn hạn và trung hạn, kèm theo KHUYẾN NGHỊ HÀNH ĐỘNG (Recommendation) rõ ràng cho nhà đầu tư.
+- LƯU Ý THỜI GIAN: Đây là bản tin buổi ${timeOfDay}. Hãy phân tích xu hướng thị trường dựa trên các sự kiện trong 12-24 giờ qua, kết hợp so sánh với dữ liệu 7 ngày để có cái nhìn toàn cảnh. Tránh đưa ra nhận định chung chung.
+- PHÂN TÍCH DANH MỤC: Dựa vào danh mục đầu tư của người dùng (nếu có), hãy phân tích xem các tin tức và xu hướng thị trường hiện tại ảnh hưởng CỤ THỂ như thế nào đến TỪNG tài sản họ đang nắm giữ. Đưa ra chiến lược quản trị rủi ro và tối ưu hóa lợi nhuận riêng cho danh mục này.
 
-2. Viết một ghi chú phân tích chi tiết (detailed note) cho TỪNG tin tức, giải thích rõ tại sao tin này quan trọng và tác động cụ thể của nó là gì.
+2. Viết một ghi chú phân tích chi tiết (detailed note) cho TỪNG tin tức. Không chỉ tóm tắt, mà phải giải thích rõ TẠI SAO tin này quan trọng, hệ lụy logic của nó là gì, và tác động cụ thể đến dòng tiền hoặc tâm lý thị trường ra sao.
 
 Danh sách tin tức (JSON):
 ${JSON.stringify(articlesData)}
@@ -149,8 +149,8 @@ Trả về kết quả dưới dạng JSON object với cấu trúc:
 {
   "summary": "Nội dung báo cáo tổng hợp (dùng HTML tags cơ bản như <b>, <i> để format, dùng ký tự xuống dòng \\n để ngắt dòng, TUYỆT ĐỐI KHÔNG DÙNG thẻ <br>)",
   "notes": {
-    "id_tin_bai_1": "Ghi chú phân tích chi tiết cho tin bài 1",
-    "id_tin_bai_2": "Ghi chú phân tích chi tiết cho tin bài 2"
+    "id_tin_bai_1": "Ghi chú phân tích chi tiết và hệ lụy cho tin bài 1",
+    "id_tin_bai_2": "Ghi chú phân tích chi tiết và hệ lụy cho tin bài 2"
   }
 }`;
 
@@ -225,7 +225,7 @@ ${JSON.stringify(articlesData)}`;
       const timeOfDay = new Date().getHours() < 12 ? 'Sáng' : new Date().getHours() < 18 ? 'Chiều' : 'Tối';
       const portfolioString = portfolio && portfolio.length > 0 ? JSON.stringify(portfolio) : "Không có danh mục đầu tư cụ thể.";
 
-      const prompt = `Bạn là chuyên gia phân tích tài chính cấp cao. Hãy viết một bài phân tích CHI TIẾT SÂU SẮC để gửi Telegram dựa trên các tin tức và dữ liệu thị trường sau.
+      const prompt = `Bạn là một chuyên gia kinh tế vĩ mô và chiến lược gia đầu tư cấp cao. Hãy viết một bài phân tích CHI TIẾT SÂU SẮC và CHÍNH XÁC để gửi Telegram dựa trên các tin tức và dữ liệu thị trường sau.
 
 THÔNG TIN THỊ TRƯỜNG HIỆN TẠI (Thời gian: ${currentTime} - Bản tin buổi ${timeOfDay}):
 Giá Crypto (USD, Biến động 24h & 7 ngày): ${cryptoString}
@@ -233,12 +233,12 @@ Giá Crypto (USD, Biến động 24h & 7 ngày): ${cryptoString}
 DANH MỤC ĐẦU TƯ CỦA NGƯỜI DÙNG:
 ${portfolioString}
 
-Yêu cầu:
-- Phân tích chi tiết từng tin tức và tác động của nó đến thị trường (Chứng khoán, Crypto, Vĩ mô).
-- Đưa ra nhận định chuyên sâu, tổng hợp và dự báo xu hướng.
-- LƯU Ý THỜI GIAN: Đây là bản tin buổi ${timeOfDay}. Hãy phân tích xu hướng thị trường trong khoảng thời gian vừa qua, kết hợp so sánh với dữ liệu 7 ngày để có cái nhìn toàn cảnh.
-- PHÂN TÍCH DANH MỤC: Dựa vào danh mục đầu tư của người dùng (nếu có), hãy phân tích xem các tin tức và xu hướng thị trường hiện tại ảnh hưởng CỤ THỂ như thế nào đến các tài sản họ đang nắm giữ. Đưa ra lời khuyên riêng cho danh mục này.
-- Trình bày chuyên nghiệp, mạch lạc, format ĐẸP MẮT, dễ nhìn trên Telegram (sử dụng emoji hợp lý để phân chia các phần: 📊 Thị trường, 📰 Tin tức, 💡 Nhận định, 💼 Tác động Danh mục, 🎯 Khuyến nghị).
+Yêu cầu phân tích:
+- Phân tích logic và chi tiết từng tin tức: Tại sao nó xảy ra? Dòng tiền sẽ dịch chuyển thế nào? Tác động đến thị trường (Chứng khoán, Crypto, Vĩ mô) ra sao?
+- Đưa ra nhận định chuyên sâu, tổng hợp các sự kiện rời rạc thành một bức tranh toàn cảnh và dự báo xu hướng ngắn/trung hạn.
+- LƯU Ý THỜI GIAN: Đây là bản tin buổi ${timeOfDay}. Hãy phân tích xu hướng thị trường dựa trên các sự kiện trong 12-24 giờ qua, kết hợp so sánh với dữ liệu 7 ngày để có cái nhìn toàn cảnh.
+- PHÂN TÍCH DANH MỤC: Dựa vào danh mục đầu tư của người dùng (nếu có), hãy phân tích xem các tin tức và xu hướng thị trường hiện tại ảnh hưởng CỤ THỂ như thế nào đến TỪNG tài sản họ đang nắm giữ. Đưa ra chiến lược hành động rõ ràng (Mua/Bán/Giữ/Phòng ngừa rủi ro) cho danh mục này.
+- Trình bày chuyên nghiệp, mạch lạc, format ĐẸP MẮT, dễ nhìn trên Telegram (sử dụng emoji hợp lý để phân chia các phần: 📊 Bức tranh Thị trường, 📰 Phân tích Tin tức, 💡 Nhận định & Dự báo, 💼 Tác động Danh mục, 🎯 Khuyến nghị Hành động).
 
 CHÚ Ý ĐỊNH DẠNG BẮT BUỘC: 
 - Chỉ dùng các thẻ HTML được Telegram hỗ trợ: <b>, <i>, <a>, <u>, <s>, <code>, <pre>. 
