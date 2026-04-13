@@ -1,3 +1,4 @@
+// Trigger Vercel rebuild - 2026-04-13
 import { useState } from 'react';
 import { useSettingsStore, useAppStore } from '@/lib/store';
 import { createClient } from '@supabase/supabase-js';

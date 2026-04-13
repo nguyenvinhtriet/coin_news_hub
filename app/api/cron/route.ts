@@ -1,3 +1,4 @@
+// Trigger Vercel rebuild - 2026-04-13
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
@@ -157,11 +158,9 @@ async function handleCron(req: Request, isGet: boolean) {
         scoredArticles.map(a => ({
           title: a.title,
           link: a.link,
-          description: a.description,
-          pub_date: new Date(a.pubDate).toISOString(),
-          source: a.source,
+          summary: a.description,
           ai_score: a.ai_score,
-          created_at: new Date().toISOString()
+          created_at: new Date(a.pubDate).toISOString()
         })),
         { onConflict: 'link' }
       );
@@ -200,13 +199,16 @@ async function handleCron(req: Request, isGet: boolean) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: telegramMessage,
+        messageContent: telegramMessage,
         botToken: telegramBotToken,
         chatId: telegramChatId
       })
     });
 
-    if (!tgRes.ok) throw new Error('Failed to send Telegram message');
+    if (!tgRes.ok) {
+      const errData = await tgRes.json().catch(() => ({}));
+      throw new Error(`Failed to send Telegram message: ${errData.error || tgRes.statusText}`);
+    }
 
     // 9. Generate and Save Sentiment Trend
     const sentimentRes = await fetch(new URL('/api/gemini', req.url).toString(), {

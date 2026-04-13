@@ -1,3 +1,4 @@
+// Trigger Vercel rebuild - 2026-04-13
 import { useState, useEffect } from 'react';
 import { BookOpen, CheckCircle2, Lightbulb, Rocket, Shield, Zap, Clock, Bell, BarChart3, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
 

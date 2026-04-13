@@ -1,3 +1,4 @@
+// Trigger Vercel rebuild - 2026-04-13
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import { NextResponse } from 'next/server';
 

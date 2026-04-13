@@ -1,3 +1,4 @@
+// Trigger Vercel rebuild - 2026-04-13
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -269,7 +270,7 @@ export default function TabNewsFeed() {
           const { error: updateError } = await supabase
             .from('articles')
             .update({ ai_score: a.ai_score, ai_analysis: a.ai_analysis })
-            .eq('id', a.id);
+            .eq('link', a.link);
           if (updateError) throw new Error(updateError.message || JSON.stringify(updateError));
         }
       }
@@ -498,7 +499,7 @@ export default function TabNewsFeed() {
             await supabase
               .from('articles')
               .update({ ai_score: finalA.ai_score, ai_analysis: finalA.ai_analysis })
-              .eq('id', finalA.id);
+              .eq('link', finalA.link);
           }
         }
 

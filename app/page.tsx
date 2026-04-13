@@ -1,3 +1,4 @@
+// Trigger Vercel rebuild - 2026-04-13
 'use client';
 
 import { useState, useEffect } from 'react';
