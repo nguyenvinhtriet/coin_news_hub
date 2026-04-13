@@ -1,6 +1,29 @@
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import { NextResponse } from 'next/server';
 
+async function getCryptoPrices() {
+  try {
+    const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,binancecoin,ripple&vs_currencies=usd&include_24hr_change=true&include_7d_change=true', { next: { revalidate: 300 } });
+    if (!res.ok) return null;
+    const data = await res.json();
+    
+    // Format the data nicely to avoid long decimals
+    let formattedData: Record<string, any> = {};
+    for (const [coin, values] of Object.entries(data)) {
+      const v = values as any;
+      formattedData[coin] = {
+        usd: v.usd,
+        usd_24h_change: v.usd_24h_change ? Number(v.usd_24h_change.toFixed(2)) : null,
+        usd_7d_change: v.usd_7d_change ? Number(v.usd_7d_change.toFixed(2)) : null
+      };
+    }
+    return formattedData;
+  } catch (e) {
+    console.error("Failed to fetch crypto prices:", e);
+    return null;
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const { action, payload } = await req.json();
@@ -96,8 +119,40 @@ export async function POST(req: Request) {
       return NextResponse.json({ results, usedApi });
 
     } else if (action === 'analyze_and_report') {
-      const { articlesData } = payload;
-      const reportPrompt = `Bạn là chuyên gia phân tích tài chính và chiến lược gia cấp cao. Dựa vào danh sách các tin tức quan trọng sau đây, hãy thực hiện 2 việc:\n\n1. Viết một BÁO CÁO TỔNG HỢP THỊ TRƯỜNG (main summary) thật CHI TIẾT. Đánh giá sâu sắc ảnh hưởng chung đến thị trường (Chứng khoán, Crypto, Kinh tế vĩ mô). BẮT BUỘC phải có phần DỰ BÁO XU HƯỚNG (Forecast) sắp tới và KHUYẾN NGHỊ HÀNH ĐỘNG (Recommendation) cho nhà đầu tư.\n2. Viết một ghi chú phân tích chi tiết (detailed note) cho TỪNG tin tức, giải thích rõ tại sao tin này quan trọng và tác động cụ thể của nó là gì.\n\nDanh sách tin tức (JSON):\n${JSON.stringify(articlesData)}\n\nTrả về kết quả dưới dạng JSON object với cấu trúc:\n{\n  "summary": "Nội dung báo cáo tổng hợp (dùng HTML tags cơ bản như <b>, <i> để format, dùng ký tự xuống dòng \\n để ngắt dòng, TUYỆT ĐỐI KHÔNG DÙNG thẻ <br>)",\n  "notes": {\n    "id_tin_bai_1": "Ghi chú phân tích chi tiết cho tin bài 1",\n    "id_tin_bai_2": "Ghi chú phân tích chi tiết cho tin bài 2"\n  }\n}`;
+      const { articlesData, portfolio } = payload;
+      const cryptoData = await getCryptoPrices();
+      const cryptoString = cryptoData ? JSON.stringify(cryptoData) : "Không thể lấy dữ liệu giá coin lúc này.";
+      const currentTime = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+      const timeOfDay = new Date().getHours() < 12 ? 'Sáng' : new Date().getHours() < 18 ? 'Chiều' : 'Tối';
+      const portfolioString = portfolio && portfolio.length > 0 ? JSON.stringify(portfolio) : "Không có danh mục đầu tư cụ thể.";
+
+      const reportPrompt = `Bạn là chuyên gia phân tích tài chính và chiến lược gia cấp cao. Dựa vào danh sách các tin tức quan trọng và dữ liệu thị trường sau đây, hãy thực hiện 2 việc:
+
+THÔNG TIN THỊ TRƯỜNG HIỆN TẠI (Thời gian: ${currentTime} - Bản tin buổi ${timeOfDay}):
+Giá Crypto (USD, Biến động 24h & 7 ngày): ${cryptoString}
+
+DANH MỤC ĐẦU TƯ CỦA NGƯỜI DÙNG:
+${portfolioString}
+
+1. Viết một BÁO CÁO TỔNG HỢP THỊ TRƯỜNG (main summary) thật CHI TIẾT. 
+- Đánh giá sâu sắc ảnh hưởng chung đến thị trường (Chứng khoán, Crypto, Kinh tế vĩ mô). 
+- BẮT BUỘC phải có phần DỰ BÁO XU HƯỚNG (Forecast) sắp tới và KHUYẾN NGHỊ HÀNH ĐỘNG (Recommendation) cho nhà đầu tư.
+- LƯU Ý THỜI GIAN: Đây là bản tin buổi ${timeOfDay}. Hãy phân tích xu hướng thị trường trong khoảng thời gian vừa qua, so sánh với dữ liệu 7 ngày để có cái nhìn toàn cảnh.
+- PHÂN TÍCH DANH MỤC: Dựa vào danh mục đầu tư của người dùng (nếu có), hãy phân tích xem các tin tức và xu hướng thị trường hiện tại ảnh hưởng CỤ THỂ như thế nào đến các tài sản họ đang nắm giữ. Đưa ra lời khuyên riêng cho danh mục này.
+
+2. Viết một ghi chú phân tích chi tiết (detailed note) cho TỪNG tin tức, giải thích rõ tại sao tin này quan trọng và tác động cụ thể của nó là gì.
+
+Danh sách tin tức (JSON):
+${JSON.stringify(articlesData)}
+
+Trả về kết quả dưới dạng JSON object với cấu trúc:
+{
+  "summary": "Nội dung báo cáo tổng hợp (dùng HTML tags cơ bản như <b>, <i> để format, dùng ký tự xuống dòng \\n để ngắt dòng, TUYỆT ĐỐI KHÔNG DÙNG thẻ <br>)",
+  "notes": {
+    "id_tin_bai_1": "Ghi chú phân tích chi tiết cho tin bài 1",
+    "id_tin_bai_2": "Ghi chú phân tích chi tiết cho tin bài 2"
+  }
+}`;
 
       const geminiTask = async () => {
         const response = await ai!.models.generateContent({
@@ -132,7 +187,23 @@ export async function POST(req: Request) {
 
     } else if (action === 'telegram_basic') {
       const { articlesData } = payload;
-      const prompt = `Bạn là trợ lý tài chính. Hãy tóm tắt danh sách tin tức sau thành một bản tin NGẮN GỌN để gửi Telegram.\nYêu cầu:\n- Trình bày dạng danh sách rõ ràng (có thể dùng emoji).\n- Mỗi tin gồm: Tiêu đề (kèm link), Điểm số, và 1 câu nhận xét cực kỳ ngắn gọn.\n\nCHÚ Ý ĐỊNH DẠNG BẮT BUỘC: \n- Chỉ dùng các thẻ HTML được Telegram hỗ trợ: <b>, <i>, <a>, <u>, <s>, <code>, <pre>. \n- KHÔNG dùng thẻ markdown như ** hay #. \n- KHÔNG dùng <p>, <br>, <ul>, <li>, <h1>... \n- Dùng ký tự xuống dòng (\\n) để ngắt dòng.\n\nDanh sách tin:\n${JSON.stringify(articlesData)}`;
+      const currentTime = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+      const timeOfDay = new Date().getHours() < 12 ? 'Sáng' : new Date().getHours() < 18 ? 'Chiều' : 'Tối';
+
+      const prompt = `Bạn là trợ lý tài chính. Hãy tóm tắt danh sách tin tức sau thành một bản tin NGẮN GỌN để gửi Telegram.
+Yêu cầu:
+- Trình bày dạng danh sách rõ ràng, format ĐẸP MẮT, dễ nhìn (sử dụng emoji hợp lý, ví dụ: 📰, 🚀, ⚠️, 💡).
+- Bắt đầu bằng tiêu đề: 🌅 Bản tin buổi ${timeOfDay} (${currentTime})
+- Mỗi tin gồm: Tiêu đề (kèm link), Điểm số, và 1 câu nhận xét cực kỳ ngắn gọn.
+
+CHÚ Ý ĐỊNH DẠNG BẮT BUỘC: 
+- Chỉ dùng các thẻ HTML được Telegram hỗ trợ: <b>, <i>, <a>, <u>, <s>, <code>, <pre>. 
+- KHÔNG dùng thẻ markdown như ** hay #. 
+- KHÔNG dùng <p>, <br>, <ul>, <li>, <h1>... 
+- Dùng ký tự xuống dòng (\\n) để ngắt dòng.
+
+Danh sách tin:
+${JSON.stringify(articlesData)}`;
 
       const geminiTask = async () => {
         const response = await ai!.models.generateContent({ model: 'gemini-2.5-flash', contents: prompt });
@@ -147,8 +218,37 @@ export async function POST(req: Request) {
       return NextResponse.json({ result: text, usedApi });
 
     } else if (action === 'telegram_advance') {
-      const { articlesData } = payload;
-      const prompt = `Bạn là chuyên gia phân tích tài chính cấp cao. Hãy viết một bài phân tích CHI TIẾT SÂU SẮC để gửi Telegram dựa trên các tin tức sau.\nYêu cầu:\n- Phân tích chi tiết từng tin tức và tác động của nó đến thị trường (Chứng khoán, Crypto, Vĩ mô).\n- Đưa ra nhận định chuyên sâu, tổng hợp và dự báo xu hướng.\n- Trình bày chuyên nghiệp, mạch lạc.\n\nCHÚ Ý ĐỊNH DẠNG BẮT BUỘC: \n- Chỉ dùng các thẻ HTML được Telegram hỗ trợ: <b>, <i>, <a>, <u>, <s>, <code>, <pre>. \n- KHÔNG dùng thẻ markdown như ** hay #. \n- KHÔNG dùng <p>, <br>, <ul>, <li>, <h1>... \n- Dùng ký tự xuống dòng (\\n) để ngắt dòng.\n\nDanh sách tin:\n${JSON.stringify(articlesData)}`;
+      const { articlesData, portfolio } = payload;
+      const cryptoData = await getCryptoPrices();
+      const cryptoString = cryptoData ? JSON.stringify(cryptoData) : "Không thể lấy dữ liệu giá coin lúc này.";
+      const currentTime = new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' });
+      const timeOfDay = new Date().getHours() < 12 ? 'Sáng' : new Date().getHours() < 18 ? 'Chiều' : 'Tối';
+      const portfolioString = portfolio && portfolio.length > 0 ? JSON.stringify(portfolio) : "Không có danh mục đầu tư cụ thể.";
+
+      const prompt = `Bạn là chuyên gia phân tích tài chính cấp cao. Hãy viết một bài phân tích CHI TIẾT SÂU SẮC để gửi Telegram dựa trên các tin tức và dữ liệu thị trường sau.
+
+THÔNG TIN THỊ TRƯỜNG HIỆN TẠI (Thời gian: ${currentTime} - Bản tin buổi ${timeOfDay}):
+Giá Crypto (USD, Biến động 24h & 7 ngày): ${cryptoString}
+
+DANH MỤC ĐẦU TƯ CỦA NGƯỜI DÙNG:
+${portfolioString}
+
+Yêu cầu:
+- Phân tích chi tiết từng tin tức và tác động của nó đến thị trường (Chứng khoán, Crypto, Vĩ mô).
+- Đưa ra nhận định chuyên sâu, tổng hợp và dự báo xu hướng.
+- LƯU Ý THỜI GIAN: Đây là bản tin buổi ${timeOfDay}. Hãy phân tích xu hướng thị trường trong khoảng thời gian vừa qua, kết hợp so sánh với dữ liệu 7 ngày để có cái nhìn toàn cảnh.
+- PHÂN TÍCH DANH MỤC: Dựa vào danh mục đầu tư của người dùng (nếu có), hãy phân tích xem các tin tức và xu hướng thị trường hiện tại ảnh hưởng CỤ THỂ như thế nào đến các tài sản họ đang nắm giữ. Đưa ra lời khuyên riêng cho danh mục này.
+- Trình bày chuyên nghiệp, mạch lạc, format ĐẸP MẮT, dễ nhìn trên Telegram (sử dụng emoji hợp lý để phân chia các phần: 📊 Thị trường, 📰 Tin tức, 💡 Nhận định, 💼 Tác động Danh mục, 🎯 Khuyến nghị).
+
+CHÚ Ý ĐỊNH DẠNG BẮT BUỘC: 
+- Chỉ dùng các thẻ HTML được Telegram hỗ trợ: <b>, <i>, <a>, <u>, <s>, <code>, <pre>. 
+- KHÔNG dùng thẻ markdown như ** hay #. 
+- KHÔNG dùng <p>, <br>, <ul>, <li>, <h1>... 
+- Dùng ký tự xuống dòng (\\n) để ngắt dòng.
+- Đảm bảo các con số phần trăm được định dạng gọn gàng (ví dụ: +1.25%, -0.50%).
+
+Danh sách tin:
+${JSON.stringify(articlesData)}`;
 
       const geminiTask = async () => {
         const response = await ai!.models.generateContent({
@@ -165,6 +265,132 @@ export async function POST(req: Request) {
       let { result: text, usedApi } = await runWithFallback(geminiTask, groqTask);
       text = text.replace(/^```html\n?/, '').replace(/^```\n?/, '').replace(/```$/, '').trim();
       return NextResponse.json({ result: text, usedApi });
+
+    } else if (action === 'analyze_sentiment') {
+      const { articlesData } = payload;
+      const prompt = `Bạn là chuyên gia phân tích tâm lý thị trường tài chính. Dựa vào danh sách các tin tức quan trọng sau đây, hãy đánh giá tâm lý chung của thị trường.
+      
+Nhiệm vụ:
+1. Chấm điểm Bullish (Lạc quan/Tăng giá) từ 0 đến 100.
+2. Chấm điểm Bearish (Bi quan/Giảm giá) từ 0 đến 100. (Lưu ý: Bullish + Bearish không nhất thiết phải bằng 100, vì thị trường có thể vừa có tin rất tốt vừa có tin rất xấu).
+3. Xác định xu hướng chung (trend): "bullish", "bearish", hoặc "neutral".
+4. Viết 1 câu tóm tắt ngắn gọn lý do.
+
+Danh sách tin tức:
+${JSON.stringify(articlesData)}
+
+Trả về kết quả dưới dạng JSON object với cấu trúc chính xác như sau:
+{
+  "bullish_score": 75,
+  "bearish_score": 20,
+  "trend": "bullish",
+  "summary": "Thị trường phản ứng tích cực với tin tức ETF..."
+}`;
+
+      const geminiTask = async () => {
+        const response = await ai!.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                bullish_score: { type: Type.INTEGER },
+                bearish_score: { type: Type.INTEGER },
+                trend: { type: Type.STRING },
+                summary: { type: Type.STRING }
+              },
+              required: ["bullish_score", "bearish_score", "trend", "summary"]
+            }
+          }
+        });
+        const resultText = response.text;
+        if (!resultText) throw new Error("AI không trả về kết quả.");
+        return JSON.parse(resultText);
+      };
+
+      const groqTask = async () => {
+        const groqPrompt = prompt + "\n\nIMPORTANT: You MUST return a valid JSON object with exactly four keys: 'bullish_score' (number), 'bearish_score' (number), 'trend' (string), and 'summary' (string).";
+        const content = await callGroq(groqPrompt, 'llama-3.1-8b-instant', true);
+        return JSON.parse(content);
+      };
+
+      const { result, usedApi } = await runWithFallback(geminiTask, groqTask);
+      return NextResponse.json({ result, usedApi });
+
+    } else if (action === 'analyze_portfolio_impact') {
+      const { articlesData, portfolio } = payload;
+      const cryptoData = await getCryptoPrices();
+      const cryptoString = cryptoData ? JSON.stringify(cryptoData) : "Không thể lấy dữ liệu giá coin lúc này.";
+
+      const prompt = `Bạn là một chuyên gia kinh tế và quản lý danh mục đầu tư cấp cao. Dựa vào danh sách tin tức mới nhất và dữ liệu thị trường (bao gồm biến động 24h và 7 ngày), hãy phân tích TOÀN DIỆN VÀ CHÍNH XÁC tác động lên danh mục đầu tư của người dùng.
+
+THÔNG TIN THỊ TRƯỜNG (Giá, Biến động 24h, Biến động 7 ngày): ${cryptoString}
+DANH MỤC ĐẦU TƯ: ${JSON.stringify(portfolio)}
+TIN TỨC: ${JSON.stringify(articlesData)}
+
+Yêu cầu phân tích:
+1. So sánh xu hướng hiện tại với dữ liệu 1 tuần qua để có góc nhìn tổng quan.
+2. Đánh giá chi tiết từng tin tức có thể tác động RIÊNG BIỆT đến từng loại tài sản như thế nào (ví dụ: tin quốc gia X chấp nhận thanh toán bằng đồng Y, tin update mạng lưới Z...).
+3. Đưa ra dự báo (predict) và hành động cụ thể (action) cho từng tài sản.
+
+Trả về JSON object với cấu trúc:
+{
+  "overall_impact": "Tóm tắt tác động chung lên toàn bộ danh mục, so sánh với xu hướng 1 tuần qua (khoảng 3-4 câu).",
+  "asset_analysis": [
+    {
+      "coin": "Mã coin (VD: BTC)",
+      "trend": "Tăng / Giảm / Đi ngang",
+      "reason": "Lý do cực kỳ chi tiết, liên kết trực tiếp một tin tức cụ thể hoặc dữ liệu thị trường với đồng coin này.",
+      "predict": "Dự báo xu hướng ngắn hạn và trung hạn.",
+      "action": "Hành động khuyến nghị (VD: Nắm giữ, Chốt lời một phần, Mua thêm...)."
+    }
+  ]
+}`;
+
+      const geminiTask = async () => {
+        const response = await ai!.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: prompt,
+          config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                overall_impact: { type: Type.STRING },
+                asset_analysis: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      coin: { type: Type.STRING },
+                      trend: { type: Type.STRING },
+                      reason: { type: Type.STRING },
+                      predict: { type: Type.STRING },
+                      action: { type: Type.STRING }
+                    },
+                    required: ["coin", "trend", "reason", "predict", "action"]
+                  }
+                }
+              },
+              required: ["overall_impact", "asset_analysis"]
+            }
+          }
+        });
+        const resultText = response.text;
+        if (!resultText) throw new Error("AI không trả về kết quả.");
+        return JSON.parse(resultText);
+      };
+
+      const groqTask = async () => {
+        const groqPrompt = prompt + "\n\nIMPORTANT: You MUST return a valid JSON object with exactly two keys: 'overall_impact' (string) and 'asset_analysis' (array of objects with coin, trend, reason, predict, action).";
+        const content = await callGroq(groqPrompt, 'llama-3.1-8b-instant', true);
+        return JSON.parse(content);
+      };
+
+      const { result, usedApi } = await runWithFallback(geminiTask, groqTask);
+      return NextResponse.json({ result, usedApi });
 
     } else {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

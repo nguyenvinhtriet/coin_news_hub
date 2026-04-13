@@ -2,19 +2,60 @@
 
 import { useState } from 'react';
 import { useSettingsStore } from '@/lib/store';
-import { Save, Database, MessageSquare, Rss, Info, Sparkles, Filter } from 'lucide-react';
+import { Save, Database, MessageSquare, Rss, Info, Sparkles, Filter, CloudDownload, CloudUpload } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 
 export default function TabSettings() {
   const settings = useSettingsStore();
   const [saved, setSaved] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState('');
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaved(true);
+    
+    // Auto sync to Supabase if configured
+    if (settings.supabaseUrl && settings.supabaseAnonKey && settings.rssUrls) {
+      try {
+        const supabase = createClient(settings.supabaseUrl, settings.supabaseAnonKey);
+        await supabase.from('app_settings').upsert({ key: 'rss_urls', value: settings.rssUrls });
+      } catch (err) {
+        console.error('Failed to sync RSS to DB:', err);
+      }
+    }
+
     setTimeout(() => setSaved(false), 2000);
   };
 
-  const sqlDDL = `CREATE TABLE articles (
+  const loadRssFromDb = async () => {
+    if (!settings.supabaseUrl || !settings.supabaseAnonKey) {
+      setSyncMessage('Vui lòng cấu hình Supabase trước.');
+      setTimeout(() => setSyncMessage(''), 3000);
+      return;
+    }
+    setIsSyncing(true);
+    setSyncMessage('');
+    try {
+      const supabase = createClient(settings.supabaseUrl, settings.supabaseAnonKey);
+      const { data, error } = await supabase.from('app_settings').select('value').eq('key', 'rss_urls').single();
+      if (error) throw error;
+      if (data && data.value) {
+        settings.setSettings({ rssUrls: data.value });
+        setSyncMessage('Đã tải RSS từ Database thành công!');
+      } else {
+        setSyncMessage('Không tìm thấy dữ liệu RSS trên Database.');
+      }
+    } catch (err: any) {
+      console.error(err);
+      setSyncMessage('Lỗi: ' + (err.message || 'Không thể tải từ DB'));
+    } finally {
+      setIsSyncing(false);
+      setTimeout(() => setSyncMessage(''), 3000);
+    }
+  };
+
+    const sqlDDL = `CREATE TABLE articles (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   title TEXT NOT NULL,
   link TEXT NOT NULL,
@@ -29,6 +70,11 @@ CREATE TABLE reports (
   content TEXT NOT NULL,
   is_sent BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE TABLE app_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
 );`;
 
   const SCORE_RANGES = [
@@ -103,7 +149,17 @@ CREATE TABLE reports (
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Danh sách RSS URL (Mỗi dòng 1 link)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-sm font-medium text-gray-700">Danh sách RSS URL (Mỗi dòng 1 link)</label>
+                <button 
+                  type="button" 
+                  onClick={loadRssFromDb}
+                  disabled={isSyncing}
+                  className="text-xs text-orange-600 hover:text-orange-700 flex items-center gap-1 font-medium disabled:opacity-50"
+                >
+                  <CloudDownload className="w-3 h-3" /> Tải từ DB
+                </button>
+              </div>
               <textarea
                 value={settings.rssUrls}
                 onChange={(e) => settings.setSettings({ rssUrls: e.target.value })}
@@ -111,6 +167,8 @@ CREATE TABLE reports (
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500 outline-none transition-all font-mono text-sm"
                 placeholder="https://example.com/rss"
               />
+              {syncMessage && <p className="text-xs text-orange-600 mt-1">{syncMessage}</p>}
+              <p className="text-xs text-gray-500 mt-1">Sẽ tự động đồng bộ lên Database khi nhấn Lưu cài đặt.</p>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Tiêu chí Đánh giá (Prompt Context)</label>

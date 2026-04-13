@@ -24,6 +24,8 @@ interface SettingsState {
   hotCriteria: string;
   rssUrls: string;
   defaultScoreFilter: string[];
+  cronSecret: string;
+  portfolio: { coin: string; amount: number }[];
   setSettings: (settings: Partial<SettingsState>) => void;
 }
 
@@ -39,6 +41,8 @@ export const useSettingsStore = create<SettingsState>()(
       hotCriteria: process.env.NEXT_PUBLIC_HOT_CRITERIA || 'Đánh giá xem tin tức này có mức độ Critical (nghiêm trọng) hoặc Hot (nóng) đối với thị trường tài chính, chứng khoán toàn cầu và Crypto hay không. Chấm điểm từ 1-10 và giải thích ngắn gọn.',
       rssUrls: process.env.NEXT_PUBLIC_RSS_URLS ? process.env.NEXT_PUBLIC_RSS_URLS.replace(/,/g, '\n') : 'https://cointelegraph.com/rss\nhttps://www.coindesk.com/arc/outboundfeeds/rss/\nhttps://search.cnbc.com/rs/search/combinedcms/view.xml?profile=120000000&id=10000664\nhttps://feeds.a.dj.com/rss/RSSMarketsMain.xml\nhttps://vietnamnet.vn/kinh-doanh-tai-chinh.rss',
       defaultScoreFilter: ['9-10', '7-8', 'unscored'],
+      cronSecret: 'my-super-secret-cron-key-123', // Default secret for cron job
+      portfolio: [], // Default empty portfolio
       setSettings: (newSettings) => set((state) => ({ ...state, ...newSettings })),
     }),
     {

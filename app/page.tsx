@@ -1,15 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { LayoutDashboard, Send, Settings, Newspaper, LogOut, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutDashboard, Send, Settings, Newspaper, LogOut, ChevronLeft, ChevronRight, BookOpen, Wallet, Activity } from 'lucide-react';
 import TabNewsFeed from '@/components/TabNewsFeed';
 import TabDispatcher from '@/components/TabDispatcher';
 import TabSettings from '@/components/TabSettings';
+import TabGuideline from '@/components/TabGuideline';
+import TabPortfolio from '@/components/TabPortfolio';
+import TabSentiment from '@/components/TabSentiment';
 import Login from '@/components/Login';
 import { useAuthStore } from '@/lib/store';
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<'feed' | 'dispatcher' | 'settings'>('feed');
+  const [activeTab, setActiveTab] = useState<'feed' | 'dispatcher' | 'portfolio' | 'sentiment' | 'settings' | 'guideline'>('feed');
   const [mounted, setMounted] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const { isAuthenticated, logout } = useAuthStore();
@@ -91,6 +94,28 @@ export default function Home() {
             <Send className="w-5 h-5 shrink-0" />
             {isSidebarOpen && <span className="whitespace-nowrap">Quản lý & Gửi Telegram</span>}
           </button>
+
+          <button
+            onClick={() => setActiveTab('portfolio')}
+            className={`w-full flex items-center gap-3 py-3 rounded-lg text-sm font-medium transition-colors ${isSidebarOpen ? 'px-4' : 'justify-center px-0'} ${
+              activeTab === 'portfolio' ? 'bg-emerald-50 text-emerald-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            }`}
+            title="Danh mục đầu tư"
+          >
+            <Wallet className="w-5 h-5 shrink-0" />
+            {isSidebarOpen && <span className="whitespace-nowrap">Danh mục đầu tư</span>}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('sentiment')}
+            className={`w-full flex items-center gap-3 py-3 rounded-lg text-sm font-medium transition-colors ${isSidebarOpen ? 'px-4' : 'justify-center px-0'} ${
+              activeTab === 'sentiment' ? 'bg-purple-50 text-purple-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            }`}
+            title="Tâm lý thị trường"
+          >
+            <Activity className="w-5 h-5 shrink-0" />
+            {isSidebarOpen && <span className="whitespace-nowrap">Tâm lý thị trường</span>}
+          </button>
           
           <button
             onClick={() => setActiveTab('settings')}
@@ -101,6 +126,17 @@ export default function Home() {
           >
             <Settings className="w-5 h-5 shrink-0" />
             {isSidebarOpen && <span className="whitespace-nowrap">Cấu hình hệ thống</span>}
+          </button>
+
+          <button
+            onClick={() => setActiveTab('guideline')}
+            className={`w-full flex items-center gap-3 py-3 rounded-lg text-sm font-medium transition-colors ${isSidebarOpen ? 'px-4' : 'justify-center px-0'} ${
+              activeTab === 'guideline' ? 'bg-indigo-50 text-indigo-700' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+            }`}
+            title="Hướng dẫn & Tính năng"
+          >
+            <BookOpen className="w-5 h-5 shrink-0" />
+            {isSidebarOpen && <span className="whitespace-nowrap">Hướng dẫn & Tính năng</span>}
           </button>
 
           {!isSidebarOpen && (
@@ -122,7 +158,10 @@ export default function Home() {
         <div className="max-w-6xl mx-auto">
           {activeTab === 'feed' && <TabNewsFeed />}
           {activeTab === 'dispatcher' && <TabDispatcher />}
+          {activeTab === 'portfolio' && <TabPortfolio />}
+          {activeTab === 'sentiment' && <TabSentiment />}
           {activeTab === 'settings' && <TabSettings />}
+          {activeTab === 'guideline' && <TabGuideline />}
         </div>
       </main>
 
@@ -147,6 +186,24 @@ export default function Home() {
           Gửi tin
         </button>
         <button
+          onClick={() => setActiveTab('portfolio')}
+          className={`flex flex-col items-center p-2 rounded-lg text-[10px] font-medium ${
+            activeTab === 'portfolio' ? 'text-emerald-600' : 'text-gray-500'
+          }`}
+        >
+          <Wallet className="w-6 h-6 mb-1" />
+          Danh mục
+        </button>
+        <button
+          onClick={() => setActiveTab('sentiment')}
+          className={`flex flex-col items-center p-2 rounded-lg text-[10px] font-medium ${
+            activeTab === 'sentiment' ? 'text-purple-600' : 'text-gray-500'
+          }`}
+        >
+          <Activity className="w-6 h-6 mb-1" />
+          Tâm lý
+        </button>
+        <button
           onClick={() => setActiveTab('settings')}
           className={`flex flex-col items-center p-2 rounded-lg text-[10px] font-medium ${
             activeTab === 'settings' ? 'text-gray-900' : 'text-gray-500'
@@ -154,6 +211,15 @@ export default function Home() {
         >
           <Settings className="w-6 h-6 mb-1" />
           Cấu hình
+        </button>
+        <button
+          onClick={() => setActiveTab('guideline')}
+          className={`flex flex-col items-center p-2 rounded-lg text-[10px] font-medium ${
+            activeTab === 'guideline' ? 'text-indigo-600' : 'text-gray-500'
+          }`}
+        >
+          <BookOpen className="w-6 h-6 mb-1" />
+          Hướng dẫn
         </button>
       </nav>
     </div>
