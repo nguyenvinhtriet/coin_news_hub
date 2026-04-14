@@ -1,246 +1,140 @@
-// Trigger Vercel rebuild - 2026-04-13
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Helper to fetch RSS
 async function fetchRSS(urls: string[]) {
-  const allArticles: any[] = [];
+  const allItems: any[] = [];
   for (const url of urls) {
     try {
-      const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url)}`);
-      if (!res.ok) continue;
+      const res = await fetch(`https://api.rss2json.com/v1/api.json?rss_url=${encodeURIComponent(url.trim())}`);
       const data = await res.json();
-      if (data.status === 'ok' && data.items) {
-        const items = data.items.map((item: any) => ({
+      if (data.status === 'ok') {
+        allItems.push(...data.items.map((item: any) => ({
           id: item.guid || item.link,
           title: item.title,
           link: item.link,
-          description: item.description?.replace(/<[^>]*>?/gm, '').substring(0, 300) + '...',
+          description: item.description.replace(/<[^>]*>?/gm, '').substring(0, 500),
           pubDate: item.pubDate,
-          source: data.feed.title || url
-        }));
-        allArticles.push(...items);
+          source: data.feed.title
+        })));
       }
     } catch (e) {
-      console.error(`Error fetching RSS ${url}:`, e);
+      console.error(`RSS Fetch Error for ${url}:`, e);
     }
   }
-  return allArticles;
+  return allItems;
 }
 
 export async function GET(req: Request) {
-  return handleCron(req, true);
-}
-
-export async function POST(req: Request) {
-  return handleCron(req, false);
-}
-
-async function handleCron(req: Request, isGet: boolean) {
   try {
-    const authHeader = req.headers.get('authorization');
-    let payload: any = {};
-    
-    if (!isGet) {
-      try { payload = await req.json(); } catch (e) {}
-    }
-    
-    // 1. Verify Cron Secret
-    const cronSecret = process.env.CRON_SECRET || payload?.cronSecret || 'my-super-secret-cron-key-123';
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    const { searchParams } = new URL(req.url);
+    const secret = searchParams.get('secret');
+
+    // Simple security check
+    if (secret !== process.env.CRON_SECRET && process.env.NODE_ENV === 'production') {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // 2. Extract settings (Priority: Payload -> Env Vars)
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || payload.supabaseUrl;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || payload.supabaseAnonKey;
-    const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN || payload.telegramBotToken;
-    const telegramChatId = process.env.TELEGRAM_CHAT_ID || payload.telegramChatId;
-    const geminiApiKey = process.env.GEMINI_API_KEY || payload.geminiApiKey;
-    const groqApiKey = process.env.GROQ_API_KEY || payload.groqApiKey;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+    const geminiApiKey = process.env.GEMINI_API_KEY || '';
+    const telegramBotToken = process.env.TELEGRAM_BOT_TOKEN || '';
+    const telegramChatId = process.env.TELEGRAM_CHAT_ID || '';
 
-    if (!supabaseUrl || !supabaseAnonKey || !telegramBotToken || !telegramChatId || (!geminiApiKey && !groqApiKey)) {
-      return NextResponse.json({ error: 'Missing required configuration (Env vars or payload)' }, { status: 400 });
+    if (!supabaseUrl || !supabaseKey) {
+      return NextResponse.json({ error: 'Supabase config missing' }, { status: 500 });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
+    const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Fetch dynamic settings from Supabase app_settings if not in payload
-    let rssUrls = payload.rssUrls || process.env.NEXT_PUBLIC_RSS_URLS;
-    let hotCriteria = payload.hotCriteria || process.env.NEXT_PUBLIC_HOT_CRITERIA;
-    let portfolio = payload.portfolio || [];
-    let promptAnalyzeReport = payload.promptAnalyzeReport;
-    let promptTelegramBasic = payload.promptTelegramBasic;
-    let promptTelegramAdvance = payload.promptTelegramAdvance;
-    let promptPortfolioImpact = payload.promptPortfolioImpact;
-    let promptSentiment = payload.promptSentiment;
+    // 1. Get Settings from DB or use defaults
+    const rssUrls = [
+      "https://vnexpress.net/rss/kinh-doanh.rss",
+      "https://vietnambiz.vn/rss/kinh-te-vi-mo-8.rss",
+      "https://coin68.com/feed/",
+      "https://blogtienao.com/feed"
+    ];
 
-    try {
-      const { data: settingsData } = await supabase.from('app_settings').select('*');
-      if (settingsData) {
-        const dbRss = settingsData.find(s => s.key === 'rss_urls')?.value;
-        if (dbRss && !payload.rssUrls) rssUrls = dbRss;
-        
-        const dbCriteria = settingsData.find(s => s.key === 'hot_criteria')?.value;
-        if (dbCriteria && !payload.hotCriteria) hotCriteria = dbCriteria;
-
-        const dbPortfolio = settingsData.find(s => s.key === 'portfolio')?.value;
-        if (dbPortfolio && !payload.portfolio) portfolio = JSON.parse(dbPortfolio);
-
-        const dbPromptAnalyzeReport = settingsData.find(s => s.key === 'prompt_analyze_report')?.value;
-        if (dbPromptAnalyzeReport && !payload.promptAnalyzeReport) promptAnalyzeReport = dbPromptAnalyzeReport;
-
-        const dbPromptTelegramBasic = settingsData.find(s => s.key === 'prompt_telegram_basic')?.value;
-        if (dbPromptTelegramBasic && !payload.promptTelegramBasic) promptTelegramBasic = dbPromptTelegramBasic;
-
-        const dbPromptTelegramAdvance = settingsData.find(s => s.key === 'prompt_telegram_advance')?.value;
-        if (dbPromptTelegramAdvance && !payload.promptTelegramAdvance) promptTelegramAdvance = dbPromptTelegramAdvance;
-
-        const dbPromptPortfolioImpact = settingsData.find(s => s.key === 'prompt_portfolio_impact')?.value;
-        if (dbPromptPortfolioImpact && !payload.promptPortfolioImpact) promptPortfolioImpact = dbPromptPortfolioImpact;
-
-        const dbPromptSentiment = settingsData.find(s => s.key === 'prompt_sentiment')?.value;
-        if (dbPromptSentiment && !payload.promptSentiment) promptSentiment = dbPromptSentiment;
-      }
-    } catch (e) {
-      console.error("Error fetching app_settings:", e);
-    }
-
-    if (!rssUrls) {
-       rssUrls = 'https://cointelegraph.com/rss\nhttps://www.coindesk.com/arc/outboundfeeds/rss/'; // fallback
-    }
-    if (!hotCriteria) {
-       hotCriteria = 'Đánh giá xem tin tức này có mức độ Critical (nghiêm trọng) hoặc Hot (nóng) đối với thị trường tài chính, chứng khoán toàn cầu và Crypto hay không. Chấm điểm từ 1-10 và giải thích ngắn gọn.';
-    }
-
-    const urls = rssUrls.split('\n').filter((u: string) => u.trim() !== '');
-
-    // 3. Fetch RSS
-    const allArticles = await fetchRSS(urls);
+    // 2. Fetch News
+    const allArticles = await fetchRSS(rssUrls);
     
-    // Filter articles to only those published in the last 12 hours
-    const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
-    const articles = allArticles.filter(a => new Date(a.pubDate) >= twelveHoursAgo);
+    // 3. Filter last 24h
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+    const recentArticles = allArticles.filter(a => new Date(a.pubDate) >= oneDayAgo);
 
-    if (articles.length === 0) {
-      return NextResponse.json({ message: 'No recent articles found in the last 12 hours' });
+    if (recentArticles.length === 0) {
+      return NextResponse.json({ message: 'No new articles' });
     }
 
-    // 4. Score Articles via Gemini API
-    const scoreRes = await fetch(new URL('/api/gemini', req.url).toString(), {
+    // 4. Analyze with Gemini (Batch)
+    const analysisPrompt = `Bạn là chuyên gia vĩ mô. Phân tích các tin tức sau dưới góc nhìn Petrodollar & USD Dominance. 
+    Chấm điểm 1-10 về độ quan trọng. Trả về JSON: { "scores": [ { "id": "...", "score": 8, "analysis": "..." } ] }`;
+    
+    const resGemini = await fetch(new URL('/api/gemini', req.url).toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        action: 'score_only',
+        action: 'analyze_macro',
         payload: {
-          articlesData: articles.map(a => ({ id: a.id, title: a.title, description: a.description })),
-          hotCriteria,
           apiKey: geminiApiKey,
-          groqApiKey
+          articlesData: recentArticles.slice(0, 15), // Limit for cron
+          customPrompt: analysisPrompt
         }
       })
     });
 
-    if (!scoreRes.ok) throw new Error('Failed to score articles');
-    const scoreData = await scoreRes.json();
-    const scores = scoreData.results;
-
-    // Merge scores
-    const scoredArticles = articles.map(article => {
-      const scoreObj = scores.find((s: any) => s.id === article.id);
-      return { ...article, ai_score: scoreObj ? scoreObj.score : 0 };
+    const geminiData = await resGemini.json();
+    const scoredArticles = recentArticles.map(a => {
+      const scoreObj = geminiData.result?.scores?.find((s: any) => s.id === a.id);
+      return { ...a, ai_score: scoreObj?.score || 0, ai_analysis: scoreObj?.analysis || '' };
     });
 
     // 5. Save to Supabase
-    const { error: dbError } = await supabase
-      .from('articles')
-      .upsert(
-        scoredArticles.map(a => ({
-          title: a.title,
-          link: a.link,
-          summary: a.description,
-          ai_score: a.ai_score,
-          created_at: new Date(a.pubDate).toISOString()
-        })),
-        { onConflict: 'link' }
-      );
+    await supabase.from('articles').upsert(
+      scoredArticles.map(a => ({
+        link: a.link,
+        title: a.title,
+        summary: a.description,
+        ai_score: a.ai_score,
+        ai_analysis: a.ai_analysis,
+        created_at: new Date(a.pubDate).toISOString()
+      })),
+      { onConflict: 'link' }
+    );
 
-    if (dbError) console.error("Supabase upsert error:", dbError);
+    // 6. Generate Report for Telegram
+    const topArticles = scoredArticles.filter(a => a.ai_score >= 7).sort((a, b) => b.ai_score - a.ai_score);
+    if (topArticles.length > 0) {
+      const reportRes = await fetch(new URL('/api/gemini', req.url).toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate_report',
+          payload: {
+            apiKey: geminiApiKey,
+            articlesData: topArticles.map(a => ({ title: a.title, link: a.link, score: a.ai_score })),
+            portfolio: 'BTC, ETH, SOL, GOLD',
+            customPrompt: 'Viết báo cáo Telegram chuyên sâu về Petrodollar dựa trên tin tức này.'
+          }
+        })
+      });
 
-    // 6. Filter Top Articles (Score >= 7)
-    const topArticles = scoredArticles.filter(a => a.ai_score >= 7).sort((a, b) => b.ai_score - a.ai_score).slice(0, 10);
-
-    if (topArticles.length === 0) {
-      return NextResponse.json({ message: 'No high-score articles to report' });
+      const reportData = await reportRes.json();
+      
+      // 7. Send to Telegram
+      await fetch(new URL('/api/telegram', req.url).toString(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messageContent: reportData.result,
+          botToken: telegramBotToken,
+          chatId: telegramChatId
+        })
+      });
     }
 
-    // 7. Generate Telegram Report (Advanced)
-    const reportRes = await fetch(new URL('/api/gemini', req.url).toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'telegram_advance',
-        payload: {
-          articlesData: topArticles.map(a => ({ title: a.title, link: a.link, score: a.ai_score })),
-          portfolio,
-          apiKey: geminiApiKey,
-          groqApiKey,
-          customPrompt: promptTelegramAdvance
-        }
-      })
-    });
-
-    if (!reportRes.ok) throw new Error('Failed to generate report');
-    const reportData = await reportRes.json();
-    const telegramMessage = reportData.result;
-
-    // 8. Send to Telegram
-    const tgRes = await fetch(new URL('/api/telegram', req.url).toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        messageContent: telegramMessage,
-        botToken: telegramBotToken,
-        chatId: telegramChatId
-      })
-    });
-
-    if (!tgRes.ok) {
-      const errData = await tgRes.json().catch(() => ({}));
-      throw new Error(`Failed to send Telegram message: ${errData.error || tgRes.statusText}`);
-    }
-
-    // 9. Generate and Save Sentiment Trend
-    const sentimentRes = await fetch(new URL('/api/gemini', req.url).toString(), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        action: 'analyze_sentiment',
-        payload: {
-          articlesData: topArticles.map(a => ({ title: a.title, description: a.description, score: a.ai_score })),
-          apiKey: geminiApiKey,
-          groqApiKey,
-          customPrompt: promptSentiment
-        }
-      })
-    });
-
-    if (sentimentRes.ok) {
-      const sentimentData = await sentimentRes.json();
-      if (sentimentData.result) {
-        await supabase.from('market_sentiment').insert({
-          date: new Date().toISOString().split('T')[0],
-          bullish_score: sentimentData.result.bullish_score,
-          bearish_score: sentimentData.result.bearish_score,
-          trend: sentimentData.result.trend,
-          summary: sentimentData.result.summary
-        });
-      }
-    }
-
-    return NextResponse.json({ success: true, message: 'Cron job executed successfully' });
+    return NextResponse.json({ success: true, processed: scoredArticles.length });
   } catch (error: any) {
-    console.error('Cron job error:', error);
+    console.error('Cron Error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
