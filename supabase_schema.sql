@@ -1,48 +1,29 @@
--- SQL DDL for Macro Crypto Intelligence
+-- Chạy script này trong Supabase SQL Editor để tạo các bảng cần thiết
 
--- 1. Articles Table
-CREATE TABLE articles (
+-- 1. Bảng articles (Lưu trữ tin tức)
+CREATE TABLE IF NOT EXISTS public.articles (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    link TEXT UNIQUE NOT NULL,
     title TEXT NOT NULL,
+    link TEXT NOT NULL UNIQUE, -- Bắt buộc phải có UNIQUE constraint để dùng upsert
     summary TEXT,
-    ai_score INTEGER,
+    ai_score INTEGER DEFAULT 0,
     ai_analysis TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 2. Reports Table
-CREATE TABLE reports (
+-- 2. Bảng reports (Lưu trữ báo cáo)
+CREATE TABLE IF NOT EXISTS public.reports (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     content TEXT NOT NULL,
-    type TEXT DEFAULT 'macro_report',
-    is_sent BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    is_sent BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 3. Market Sentiment Table
-CREATE TABLE market_sentiment (
-    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    date DATE UNIQUE NOT NULL DEFAULT CURRENT_DATE,
-    bullish_score INTEGER NOT NULL,
-    bearish_score INTEGER NOT NULL,
-    trend TEXT NOT NULL,
-    summary TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+-- 3. Thiết lập Row Level Security (RLS)
+-- Cho phép đọc/ghi công khai (chỉ dùng cho mục đích demo/cá nhân, nếu public app thì cần cấu hình Auth)
+ALTER TABLE public.articles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 
--- Enable RLS (Optional but recommended)
-ALTER TABLE articles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE reports ENABLE ROW LEVEL SECURITY;
-ALTER TABLE market_sentiment ENABLE ROW LEVEL SECURITY;
-
--- Create policies for public access (or authenticated only)
-CREATE POLICY "Allow public read" ON articles FOR SELECT USING (true);
-CREATE POLICY "Allow public insert" ON articles FOR INSERT WITH CHECK (true);
-CREATE POLICY "Allow public update" ON articles FOR UPDATE USING (true);
-
-CREATE POLICY "Allow public read" ON reports FOR SELECT USING (true);
-CREATE POLICY "Allow public insert" ON reports FOR INSERT WITH CHECK (true);
-
-CREATE POLICY "Allow public read" ON market_sentiment FOR SELECT USING (true);
-CREATE POLICY "Allow public insert" ON market_sentiment FOR INSERT WITH CHECK (true);
+-- Tạo policy cho phép tất cả mọi người thao tác (nếu bạn dùng Anon Key)
+CREATE POLICY "Allow public all operations on articles" ON public.articles FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "Allow public all operations on reports" ON public.reports FOR ALL USING (true) WITH CHECK (true);
