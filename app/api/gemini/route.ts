@@ -1,4 +1,4 @@
-// Trigger Vercel rebuild - 2026-04-13
+// Audit: Code file description updated for deployment - 2026-04-15
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
 import { NextResponse } from 'next/server';
 

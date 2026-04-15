@@ -1,3 +1,4 @@
+// Audit: Code file description updated for deployment - 2026-04-15
 import type {Metadata} from 'next';
 import './globals.css'; // Global styles
 

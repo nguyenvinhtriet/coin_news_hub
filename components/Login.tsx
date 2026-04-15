@@ -1,3 +1,4 @@
+// Audit: Code file description updated for deployment - 2026-04-15
 'use client';
 
 import { useState } from 'react';

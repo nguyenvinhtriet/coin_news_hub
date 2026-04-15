@@ -1,4 +1,4 @@
-// Trigger Vercel rebuild - 2026-04-13
+// Audit: Code file description updated for deployment - 2026-04-15
 import { useState } from 'react';
 import { useSettingsStore, useAppStore } from '@/lib/store';
 import { createClient } from '@supabase/supabase-js';

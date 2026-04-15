@@ -1,3 +1,4 @@
+// Audit: Code file description updated for deployment - 2026-04-15
 import { useState, useEffect } from 'react';
 import { useSettingsStore } from '@/lib/store';
 import { createClient } from '@supabase/supabase-js';

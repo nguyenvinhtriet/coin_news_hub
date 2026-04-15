@@ -1,3 +1,4 @@
+// Audit: Code file description updated for deployment - 2026-04-15
 import { createClient } from '@supabase/supabase-js';
 
 export const getSupabaseClient = (url: string, key: string) => {

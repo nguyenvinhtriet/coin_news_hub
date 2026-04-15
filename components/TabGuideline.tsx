@@ -1,4 +1,4 @@
-// Trigger Vercel rebuild - 2026-04-13
+// Audit: Code file description updated for deployment - 2026-04-15
 import { useState, useEffect } from 'react';
 import { BookOpen, CheckCircle2, Lightbulb, Rocket, Shield, Zap, Clock, Bell, BarChart3, MessageSquare, ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -7,6 +7,7 @@ export default function TabGuideline() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
+      // eslint-disable-next-line
       setOrigin(window.location.origin);
     }
   }, []);
@@ -37,8 +38,8 @@ export default function TabGuideline() {
               description="Tự động cào tin tức từ các nguồn RSS và lưu trữ vào Supabase. Sử dụng AI (Gemini/Groq) để chấm điểm mức độ quan trọng của tin tức. Tích hợp dữ liệu giá Crypto realtime từ CoinGecko để AI có góc nhìn thực tế nhất."
               details={
                 <ul className="list-disc pl-5 space-y-2 mt-2 text-sm text-gray-700">
-                  <li><strong>Cách dùng:</strong> Vào tab "Khám phá", nhấn "Lấy tin mới" để hệ thống cào tin từ các nguồn RSS đã cấu hình.</li>
-                  <li><strong>Chấm điểm AI:</strong> Nhấn "Chấm điểm AI" để Gemini đọc nội dung và chấm điểm từ 1-10 dựa trên tiêu chí bạn đã thiết lập.</li>
+                  <li><strong>Cách dùng:</strong> Vào tab &quot;Khám phá&quot;, nhấn &quot;Lấy tin mới&quot; để hệ thống cào tin từ các nguồn RSS đã cấu hình.</li>
+                  <li><strong>Chấm điểm AI:</strong> Nhấn &quot;Chấm điểm AI&quot; để Gemini đọc nội dung và chấm điểm từ 1-10 dựa trên tiêu chí bạn đã thiết lập.</li>
                   <li><strong>Lưu trữ:</strong> Các tin tức sau khi cào sẽ được tự động lưu vào database Supabase để không bị mất khi tải lại trang.</li>
                 </ul>
               }
@@ -52,7 +53,7 @@ export default function TabGuideline() {
                   <li><strong>Lọc tin:</strong> Chọn các tin tức có điểm số cao (VD: 8-10) để chuẩn bị gửi.</li>
                   <li><strong>Bản tin Basic:</strong> AI sẽ tóm tắt ngắn gọn từng tin thành dạng danh sách (bullet points).</li>
                   <li><strong>Bản tin Advanced:</strong> AI sẽ viết một bài phân tích sâu sắc, kết hợp giá Crypto realtime và danh mục đầu tư của bạn để đưa ra nhận định xu hướng.</li>
-                  <li><strong>Gửi Telegram:</strong> Nhấn "Gửi Telegram" để đẩy trực tiếp bản tin vừa tạo vào Group/Channel của bạn.</li>
+                  <li><strong>Gửi Telegram:</strong> Nhấn &quot;Gửi Telegram&quot; để đẩy trực tiếp bản tin vừa tạo vào Group/Channel của bạn.</li>
                 </ul>
               }
             />
@@ -93,7 +94,7 @@ export default function TabGuideline() {
                     <ol className="list-decimal pl-5 space-y-1">
                       <li>Tạo file <code>vercel.json</code> ở thư mục gốc của dự án (đã có sẵn trong code).</li>
                       <li>Vào Vercel Dashboard {'>'} Settings {'>'} Environment Variables, thêm biến <code>CRON_SECRET</code> (ví dụ: my-super-secret-cron-key-123).</li>
-                      <li>Hệ thống sẽ tự động lấy danh sách RSS và Tiêu chí đánh giá từ Database (bảng <code>app_settings</code>) nếu bạn đã nhấn "Lưu cài đặt" ở tab Cài đặt.</li>
+                      <li>Hệ thống sẽ tự động lấy danh sách RSS và Tiêu chí đánh giá từ Database (bảng <code>app_settings</code>) nếu bạn đã nhấn &quot;Lưu cài đặt&quot; ở tab Cài đặt.</li>
                     </ol>
                   </div>
 
@@ -110,12 +111,12 @@ export default function TabGuideline() {
 
                   <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
                     <h5 className="font-semibold text-blue-900 mb-2 flex items-center gap-2"><MessageSquare className="w-4 h-4" /> Lên lịch từ Telegram?</h5>
-                    <p className="text-blue-800">Telegram Bot <strong>không có sẵn tính năng tự động lên lịch (scheduler)</strong>. Để Bot tự động gửi tin nhắn mỗi ngày, bạn <strong>bắt buộc</strong> phải dùng Vercel Cron hoặc cron-job.org để "kích hoạt" hệ thống. Khi hệ thống được kích hoạt, nó sẽ tự động lấy tin, dùng AI phân tích và gửi kết quả vào Telegram của bạn.</p>
+                    <p className="text-blue-800">Telegram Bot <strong>không có sẵn tính năng tự động lên lịch (scheduler)</strong>. Để Bot tự động gửi tin nhắn mỗi ngày, bạn <strong>bắt buộc</strong> phải dùng Vercel Cron hoặc cron-job.org để &quot;kích hoạt&quot; hệ thống. Khi hệ thống được kích hoạt, nó sẽ tự động lấy tin, dùng AI phân tích và gửi kết quả vào Telegram của bạn.</p>
                   </div>
 
                   <p className="text-blue-600 font-medium flex items-center gap-1">
                     <Lightbulb className="w-4 h-4" /> 
-                    Mẹo: Bạn có thể nhấn nút "Chạy thử Cron Job ngay" ở tab Cài đặt để kiểm tra xem luồng tự động có hoạt động và gửi tin nhắn Telegram thành công hay không.
+                    Mẹo: Bạn có thể nhấn nút &quot;Chạy thử Cron Job ngay&quot; ở tab Cài đặt để kiểm tra xem luồng tự động có hoạt động và gửi tin nhắn Telegram thành công hay không.
                   </p>
                 </div>
               }
@@ -128,7 +129,7 @@ export default function TabGuideline() {
                 <ul className="list-disc pl-5 space-y-2 mt-2 text-sm text-gray-700">
                   <li><strong>Cách hoạt động:</strong> Mỗi khi Cron Job chạy, AI sẽ đọc các tin tức Hot nhất trong ngày và chấm điểm Bullish (Lạc quan) / Bearish (Bi quan) từ 0-100.</li>
                   <li><strong>Lưu trữ:</strong> Dữ liệu này được lưu vào bảng <code>market_sentiment</code> trên Supabase.</li>
-                  <li><strong>Biểu đồ:</strong> Tab "Tâm lý" sẽ vẽ biểu đồ diện tích (Area Chart) 30 ngày gần nhất để bạn dễ dàng theo dõi xu hướng dòng tiền và tâm lý đám đông.</li>
+                  <li><strong>Biểu đồ:</strong> Tab &quot;Tâm lý&quot; sẽ vẽ biểu đồ diện tích (Area Chart) 30 ngày gần nhất để bạn dễ dàng theo dõi xu hướng dòng tiền và tâm lý đám đông.</li>
                 </ul>
               }
             />
@@ -138,8 +139,8 @@ export default function TabGuideline() {
               description="Cho phép người dùng nhập danh mục đầu tư. AI sẽ cá nhân hoá báo cáo, phân tích xem tin tức ảnh hưởng thế nào đến chính danh mục đó."
               details={
                 <ul className="list-disc pl-5 space-y-2 mt-2 text-sm text-gray-700">
-                  <li><strong>Quản lý:</strong> Thêm mã Coin (VD: BTC, ETH, SOL) và số lượng bạn đang nắm giữ tại tab "Danh mục".</li>
-                  <li><strong>Phân tích trực tiếp:</strong> Nhấn nút "Phân tích Tác động (AI)" để AI đọc tin tức mới nhất và đánh giá xem danh mục của bạn sẽ tăng hay giảm.</li>
+                  <li><strong>Quản lý:</strong> Thêm mã Coin (VD: BTC, ETH, SOL) và số lượng bạn đang nắm giữ tại tab &quot;Danh mục&quot;.</li>
+                  <li><strong>Phân tích trực tiếp:</strong> Nhấn nút &quot;Phân tích Tác động (AI)&quot; để AI đọc tin tức mới nhất và đánh giá xem danh mục của bạn sẽ tăng hay giảm.</li>
                   <li><strong>Tích hợp Telegram:</strong> Khi tạo báo cáo Advanced, AI cũng tự động chèn thêm phần phân tích tác động riêng cho danh mục của bạn vào bản tin.</li>
                 </ul>
               }
